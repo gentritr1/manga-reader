@@ -1,14 +1,17 @@
-import { getLatest, getPopular } from "@/lib/mangadex-server";
+import { getLatestUpdates, getPopular } from "@/lib/mangadex-server";
 import { Hero } from "@/components/home/hero";
 import { ContinueReading } from "@/components/home/continue-reading";
 import { Section } from "@/components/manga/section";
 import { MangaGrid } from "@/components/manga/manga-grid";
 import { AdSlot } from "@/components/ads/ad-slot";
 
-export const revalidate = 600;
+export const revalidate = 300;
 
 export default async function HomePage() {
-  const [popular, latest] = await Promise.all([getPopular(18), getLatest(24)]);
+  const [popular, latest] = await Promise.all([
+    getPopular(18),
+    getLatestUpdates(24),
+  ]);
 
   if (popular.length === 0 && latest.length === 0) {
     return (

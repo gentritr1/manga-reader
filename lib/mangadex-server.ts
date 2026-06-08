@@ -130,6 +130,42 @@ export async function getLatest(limit = 24): Promise<SimpleManga[]> {
   return manga;
 }
 
+/**
+ * True "latest updates": newest English chapter releases, de-duplicated to one
+ * entry per manga, ordered by actual release time (readableAt desc).
+ */
+export async function getLatestUpdates(limit = 24): Promise<SimpleManga[]> {
+  const q = new URLSearchParams();
+  q.set("limit", "100"); // over-fetch so we can dedupe to `limit` unique manga
+  q.append("translatedLanguage[]", "en");
+  q.set("order[readableAt]", "desc");
+  q.append("includes[]", "manga");
+  for (const cr of ["safe", "suggestive"]) q.append("contentRating[]", cr);
+  q.set("includeFutureUpdates", "0");
+
+  const json = await mdFetch<{ data?: unknown[] }>(`/chapter?${q}`, 300);
+  if (!json?.data) return [];
+
+  const seen = new Set<string>();
+  const orderedIds: string[] = [];
+  for (const ch of json.data as {
+    relationships?: { id: string; type: string }[];
+  }[]) {
+    const mangaRel = ch.relationships?.find((r) => r.type === "manga");
+    if (mangaRel && !seen.has(mangaRel.id)) {
+      seen.add(mangaRel.id);
+      orderedIds.push(mangaRel.id);
+    }
+    if (orderedIds.length >= limit) break;
+  }
+
+  const manga = await getMangaByIds(orderedIds);
+  const byId = new Map(manga.map((m) => [m.id, m]));
+  return orderedIds
+    .map((id) => byId.get(id))
+    .filter((m): m is SimpleManga => Boolean(m));
+}
+
 export async function getMangaByIds(ids: string[]): Promise<SimpleManga[]> {
   if (ids.length === 0) return [];
   const q = new URLSearchParams();
