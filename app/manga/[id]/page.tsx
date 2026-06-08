@@ -12,7 +12,7 @@ import { Synopsis } from "@/components/manga/synopsis";
 import { ChapterList } from "@/components/manga/chapter-list";
 import { AdSlot } from "@/components/ads/ad-slot";
 
-export const revalidate = 3600;
+export const revalidate = 900;
 
 export async function generateMetadata({
   params,
@@ -43,6 +43,9 @@ export default async function MangaDetailPage({
   const cover = coverUrl(manga.id, manga.coverFileName, 512);
   // feed is newest-first; the earliest readable chapter is the last readable one.
   const firstChapter = [...feed.chapters].reverse().find(isReadable);
+  const readableCount = feed.chapters.filter(isReadable).length;
+  // All chapters are licensed/official links — nothing can be read in-app.
+  const licensedOnly = feed.chapters.length > 0 && readableCount === 0;
 
   return (
     <div className="relative">
@@ -117,6 +120,18 @@ export default async function MangaDetailPage({
               ({feed.total})
             </span>
           </h2>
+          {licensedOnly && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm">
+              <p className="font-medium text-amber-600 dark:text-amber-400">
+                This title is officially licensed
+              </p>
+              <p className="mt-1 text-muted-foreground">
+                The publisher holds the rights, so chapters can’t be read here.
+                Each chapter below links to the official source where you can read
+                it legally — please support the creators.
+              </p>
+            </div>
+          )}
           <ChapterList chapters={feed.chapters} />
         </div>
       </div>

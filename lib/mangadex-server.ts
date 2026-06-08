@@ -4,6 +4,7 @@ import "server-only";
 import {
   MD_API,
   buildMangaQuery,
+  isReadable,
   simplifyChapter,
   simplifyManga,
   type ChapterPages,
@@ -120,9 +121,61 @@ export async function getChapterPages(
   };
 }
 
+/**
+ * True when a manga has at least one readable (non-licensed) English chapter.
+ * Cached for 6h since licensing status changes rarely. On API failure it returns
+ * `true` so a transient error never wrongly hides everything.
+ */
+export async function hasReadableEnglish(mangaId: string): Promise<boolean> {
+  const q = new URLSearchParams();
+  q.set("limit", "100");
+  q.append("translatedLanguage[]", "en");
+  for (const cr of ["safe", "suggestive", "erotica"])
+    q.append("contentRating[]", cr);
+  q.set("includeFutureUpdates", "0");
+  const json = await mdFetch<ListResponse>(
+    `/manga/${mangaId}/feed?${q}`,
+    21600,
+  );
+  if (!json?.data) return true;
+  return json.data.some((c) => isReadable(simplifyChapter(c as never)));
+}
+
+/** Run an async predicate over a list with bounded concurrency. */
+async function readableIdSet(
+  manga: SimpleManga[],
+  concurrency = 5,
+): Promise<Set<string>> {
+  const readable = new Set<string>();
+  let cursor = 0;
+  async function worker() {
+    while (cursor < manga.length) {
+      const m = manga[cursor++];
+      if (await hasReadableEnglish(m.id)) readable.add(m.id);
+    }
+  }
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, manga.length) }, worker),
+  );
+  return readable;
+}
+
+/** Keep only manga with readable English chapters, preserving order. */
+export async function filterReadableManga(
+  manga: SimpleManga[],
+  need: number,
+): Promise<SimpleManga[]> {
+  const readable = await readableIdSet(manga);
+  return manga.filter((m) => readable.has(m.id)).slice(0, need);
+}
+
 export async function getPopular(limit = 12): Promise<SimpleManga[]> {
-  const { manga } = await searchManga({ sort: "popular", limit });
-  return manga;
+  // Over-fetch, then drop licensed/external-only titles so the grid stays full.
+  const { manga } = await searchManga({
+    sort: "popular",
+    limit: Math.min(limit * 2 + 6, 100),
+  });
+  return filterReadableManga(manga, limit);
 }
 
 export async function getLatest(limit = 24): Promise<SimpleManga[]> {
@@ -149,8 +202,11 @@ export async function getLatestUpdates(limit = 24): Promise<SimpleManga[]> {
   const seen = new Set<string>();
   const orderedIds: string[] = [];
   for (const ch of json.data as {
+    attributes?: { externalUrl?: string | null; pages?: number };
     relationships?: { id: string; type: string }[];
   }[]) {
+    // Skip licensed/external chapters — these can't be read in-app.
+    if (ch.attributes?.externalUrl || ch.attributes?.pages === 0) continue;
     const mangaRel = ch.relationships?.find((r) => r.type === "manga");
     if (mangaRel && !seen.has(mangaRel.id)) {
       seen.add(mangaRel.id);

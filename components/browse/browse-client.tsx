@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Search, SlidersHorizontal } from "lucide-react";
 import { searchMangaClient } from "@/lib/mangadex-client";
 import {
-  GENRE_TAGS,
+  TAG_GROUPS,
   type MangaStatus,
   type SortOption,
 } from "@/lib/mangadex";
@@ -47,7 +47,9 @@ export function BrowseClient() {
 
   const [title, setTitle] = useState(params.get("q") ?? "");
   const [sort, setSort] = useState<SortOption>(
-    (params.get("sort") as SortOption) || "relevance",
+    (params.get("sort") as SortOption) ||
+      // Default to newest-updated when just browsing; "best match" only when searching.
+      (params.get("q") ? "relevance" : "latest"),
   );
   const [status, setStatus] = useState<MangaStatus | "">(
     (params.get("status") as MangaStatus) || "",
@@ -164,22 +166,39 @@ export function BrowseClient() {
                 </select>
               </label>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {Object.entries(GENRE_TAGS).map(([name, id]) => (
-                <button
-                  key={id}
-                  onClick={() => toggleGenre(id)}
-                  className={cn(
-                    "rounded-full border px-3 py-1 text-xs font-medium transition",
-                    genres.includes(id)
-                      ? "border-accent bg-accent text-accent-foreground"
-                      : "border-border text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {name}
-                </button>
+            <div className="max-h-72 space-y-3 overflow-y-auto pr-1">
+              {TAG_GROUPS.map((group) => (
+                <div key={group.label} className="space-y-1.5">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    {group.label}
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {group.tags.map((tag) => (
+                      <button
+                        key={tag.id}
+                        onClick={() => toggleGenre(tag.id)}
+                        className={cn(
+                          "rounded-full border px-3 py-1 text-xs font-medium transition",
+                          genres.includes(tag.id)
+                            ? "border-accent bg-accent text-accent-foreground"
+                            : "border-border text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        {tag.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               ))}
             </div>
+            {genres.length > 0 && (
+              <button
+                onClick={() => setGenres([])}
+                className="text-xs font-medium text-accent hover:underline"
+              >
+                Clear {genres.length} selected
+              </button>
+            )}
           </div>
         )}
       </div>
