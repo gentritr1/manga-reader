@@ -5,6 +5,7 @@ import type { Metadata } from "next";
 import { BookOpen } from "lucide-react";
 import { getChapters, getManga } from "@/lib/mangadex-server";
 import { coverUrl, isReadable } from "@/lib/mangadex";
+import { SITE_URL } from "@/lib/site";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { FavoriteButton } from "@/components/manga/favorite-button";
@@ -21,9 +22,30 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const manga = await getManga(id);
+  const title = manga?.title ?? "Manga";
+  const description =
+    manga?.description?.slice(0, 200) ||
+    `Read ${title} online for free on Yomi.`;
+  const cover = manga ? coverUrl(manga.id, manga.coverFileName, 512) : null;
+  const canonical = `/manga/${id}`;
+
   return {
-    title: manga?.title ?? "Manga",
-    description: manga?.description?.slice(0, 160),
+    title,
+    description,
+    alternates: { canonical },
+    openGraph: {
+      type: "book",
+      title,
+      description,
+      url: canonical,
+      images: cover ? [{ url: cover, width: 512, height: 728, alt: title }] : [],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description,
+      images: cover ? [cover] : [],
+    },
   };
 }
 
@@ -47,8 +69,24 @@ export default async function MangaDetailPage({
   // All chapters are licensed/official links — nothing can be read in-app.
   const licensedOnly = feed.chapters.length > 0 && readableCount === 0;
 
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "ComicSeries",
+    name: manga.title,
+    description: manga.description?.slice(0, 300) || undefined,
+    image: cover || undefined,
+    author: manga.author ? { "@type": "Person", name: manga.author } : undefined,
+    genre: manga.tags.length ? manga.tags : undefined,
+    url: `${SITE_URL}/manga/${manga.id}`,
+    numberOfEpisodes: feed.total || undefined,
+  };
+
   return (
     <div className="relative">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       {/* Backdrop */}
       <div className="absolute inset-x-0 top-0 h-72 overflow-hidden">
         {cover && (
