@@ -3,6 +3,7 @@ import { Hero } from "@/components/home/hero";
 import { ContinueReading } from "@/components/home/continue-reading";
 import { Section } from "@/components/manga/section";
 import { MangaGrid } from "@/components/manga/manga-grid";
+import { MangaCarousel } from "@/components/manga/manga-carousel";
 import { AdSlot } from "@/components/ads/ad-slot";
 
 export const revalidate = 300;
@@ -34,7 +35,7 @@ export default async function HomePage() {
 
       {rest.length > 0 && (
         <Section title="Popular now" href="/browse?sort=popular">
-          <MangaGrid manga={rest} />
+          <MangaCarousel manga={rest} />
         </Section>
       )}
 
