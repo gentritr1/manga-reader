@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element */
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ArrowLeft,
   ChevronLeft,
@@ -30,19 +30,22 @@ interface Props {
 }
 
 export function Reader(props: Props) {
+  return <ReaderContent key={props.chapterId} {...props} />;
+}
+
+function ReaderContent(props: Props) {
   const { imageUrls, prevId, nextId, mangaId } = props;
   const router = useRouter();
-  const [mode, setMode] = useState<Mode>("vertical");
+  const [mode, setMode] = useState<Mode>(() => {
+    if (typeof window === "undefined") return "vertical";
+    const saved = window.localStorage.getItem("reader-mode");
+    return saved === "paged" || saved === "vertical" ? saved : "vertical";
+  });
   // Paged slides: 0 = intro, 1..N = pages, N+1 = end.
   const [slide, setSlide] = useState(0);
   const total = imageUrls.length;
   const lastSlide = total + 1;
 
-  // Restore preferred mode.
-  useEffect(() => {
-    const saved = localStorage.getItem("reader-mode") as Mode | null;
-    if (saved) setMode(saved);
-  }, []);
   const changeMode = (m: Mode) => {
     setMode(m);
     localStorage.setItem("reader-mode", m);
@@ -109,46 +112,55 @@ export function Reader(props: Props) {
     });
   }, [slide, mode, imageUrls, total]);
 
-  // Reset to intro when chapter changes.
-  useEffect(() => setSlide(0), [props.chapterId]);
-
   const backHref = mangaId ? `/manga/${mangaId}` : "/";
 
   return (
     <div className="min-h-screen bg-black text-white">
+      <h1 className="sr-only">
+        {props.mangaTitle} {props.chapterLabel}
+        {props.chapterTitle ? `: ${props.chapterTitle}` : ""}
+      </h1>
       {/* Top bar */}
-      <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-white/10 bg-black/80 px-4 backdrop-blur">
-        <Link href={backHref} className="flex items-center gap-2 text-sm hover:text-white/80">
-          <ArrowLeft className="h-5 w-5" />
+      <header className="sticky top-0 z-30 flex min-h-14 items-center gap-3 border-b border-white/10 bg-black/80 px-4 backdrop-blur">
+        <Link
+          href={backHref}
+          aria-label={`Back to ${props.mangaTitle}`}
+          className="flex min-h-11 items-center gap-2 rounded-lg text-sm hover:text-white/80 focus-visible:ring-white/70"
+        >
+          <ArrowLeft className="h-5 w-5" aria-hidden="true" />
           <span className="hidden sm:inline">Back</span>
         </Link>
         <div className="min-w-0 flex-1 text-center">
           <p className="truncate text-sm font-medium">{props.mangaTitle}</p>
           <p className="truncate text-xs text-white/60">
             {props.chapterLabel}
-            {props.chapterTitle ? ` — ${props.chapterTitle}` : ""}
+            {props.chapterTitle ? `: ${props.chapterTitle}` : ""}
           </p>
         </div>
         <div className="flex items-center gap-1">
           <button
+            type="button"
             onClick={() => changeMode("vertical")}
             aria-label="Vertical mode"
+            aria-pressed={mode === "vertical"}
             className={cn(
-              "grid h-9 w-9 place-items-center rounded-lg hover:bg-white/10",
+              "grid h-11 w-11 place-items-center rounded-lg transition hover:bg-white/10 focus-visible:ring-white/70",
               mode === "vertical" && "bg-white/15",
             )}
           >
-            <Rows3 className="h-5 w-5" />
+            <Rows3 className="h-5 w-5" aria-hidden="true" />
           </button>
           <button
+            type="button"
             onClick={() => changeMode("paged")}
             aria-label="Paged mode"
+            aria-pressed={mode === "paged"}
             className={cn(
-              "grid h-9 w-9 place-items-center rounded-lg hover:bg-white/10",
+              "grid h-11 w-11 place-items-center rounded-lg transition hover:bg-white/10 focus-visible:ring-white/70",
               mode === "paged" && "bg-white/15",
             )}
           >
-            <Columns2 className="h-5 w-5" />
+            <Columns2 className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
       </header>
@@ -179,17 +191,28 @@ function ChapterNav({
   variant: "light" | "dark";
 }) {
   const router = useRouter();
+  const darkButtonClass =
+    variant === "dark"
+      ? "border-white/20 text-white hover:bg-white/10 focus-visible:ring-white/70"
+      : undefined;
+
   return (
     <div className="flex items-center justify-center gap-3">
       <Button
         variant={variant === "dark" ? "outline" : "secondary"}
         disabled={!prevId}
         onClick={() => prevId && router.push(`/read/${prevId}`)}
+        aria-label="Previous chapter"
+        className={darkButtonClass}
       >
-        <ChevronLeft className="h-4 w-4" /> Previous
+        <ChevronLeft className="h-4 w-4" aria-hidden="true" /> Previous
       </Button>
-      <Button disabled={!nextId} onClick={() => nextId && router.push(`/read/${nextId}`)}>
-        Next chapter <ChevronRight className="h-4 w-4" />
+      <Button
+        disabled={!nextId}
+        onClick={() => nextId && router.push(`/read/${nextId}`)}
+        aria-label="Next chapter"
+      >
+        Next chapter <ChevronRight className="h-4 w-4" aria-hidden="true" />
       </Button>
     </div>
   );
@@ -198,11 +221,6 @@ function ChapterNav({
 function VerticalReader(props: Props) {
   return (
     <div className="mx-auto max-w-3xl">
-      {/* Intro / chapter-start ad */}
-      <div className="px-4 py-8">
-        <AdSlot placement="chapter-start" className="mx-auto max-w-xl" />
-      </div>
-
       <div className="flex flex-col items-center">
         {props.imageUrls.map((src, i) => (
           <img
@@ -235,6 +253,7 @@ function PagedReader({
   prevId,
   nextId,
   chapterLabel,
+  chapterTitle,
 }: Props & {
   slide: number;
   total: number;
@@ -244,6 +263,8 @@ function PagedReader({
 }) {
   const isIntro = slide === 0;
   const isEnd = slide === lastSlide;
+  const prevDisabled = isIntro && !prevId;
+  const nextDisabled = isEnd && !nextId;
 
   return (
     <div className="relative flex min-h-[calc(100vh-3.5rem)] flex-col">
@@ -251,9 +272,11 @@ function PagedReader({
         {isIntro ? (
           <div className="w-full max-w-xl space-y-6 text-center">
             <h2 className="text-lg font-semibold">{chapterLabel}</h2>
-            <AdSlot placement="chapter-start" />
-            <Button size="lg" onClick={onNext}>
-              Start reading <ChevronRight className="h-4 w-4" />
+            {chapterTitle && (
+              <p className="text-sm text-white/60">{chapterTitle}</p>
+            )}
+            <Button size="lg" onClick={onNext} aria-label="Start reading">
+              Start reading <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </Button>
           </div>
         ) : isEnd ? (
@@ -275,12 +298,16 @@ function PagedReader({
       {!isIntro && !isEnd && (
         <>
           <button
-            aria-label="Previous page"
+            type="button"
+            aria-hidden="true"
+            tabIndex={-1}
             onClick={onPrev}
             className="absolute inset-y-0 left-0 w-1/3 cursor-w-resize"
           />
           <button
-            aria-label="Next page"
+            type="button"
+            aria-hidden="true"
+            tabIndex={-1}
             onClick={onNext}
             className="absolute inset-y-0 right-0 w-1/3 cursor-e-resize"
           />
@@ -288,15 +315,27 @@ function PagedReader({
       )}
 
       {/* Footer controls */}
-      <div className="sticky bottom-0 flex items-center justify-between gap-4 border-t border-white/10 bg-black/80 px-4 py-2 text-sm backdrop-blur">
-        <button onClick={onPrev} className="rounded-lg px-3 py-1 hover:bg-white/10">
-          <ChevronLeft className="h-5 w-5" />
+      <div className="sticky bottom-0 flex min-h-14 items-center justify-between gap-4 border-t border-white/10 bg-black/80 px-4 py-2 text-sm backdrop-blur">
+        <button
+          type="button"
+          disabled={prevDisabled}
+          onClick={onPrev}
+          aria-label={isIntro ? "Previous chapter" : "Previous page"}
+          className="grid h-11 min-w-11 place-items-center rounded-lg px-3 hover:bg-white/10 focus-visible:ring-white/70 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+        >
+          <ChevronLeft className="h-5 w-5" aria-hidden="true" />
         </button>
-        <span className="text-white/70">
+        <span className="text-white/70" aria-live="polite">
           {isIntro ? "Start" : isEnd ? "End" : `${slide} / ${total}`}
         </span>
-        <button onClick={onNext} className="rounded-lg px-3 py-1 hover:bg-white/10">
-          <ChevronRight className="h-5 w-5" />
+        <button
+          type="button"
+          disabled={nextDisabled}
+          onClick={onNext}
+          aria-label={isEnd ? "Next chapter" : "Next page"}
+          className="grid h-11 min-w-11 place-items-center rounded-lg px-3 hover:bg-white/10 focus-visible:ring-white/70 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+        >
+          <ChevronRight className="h-5 w-5" aria-hidden="true" />
         </button>
       </div>
     </div>

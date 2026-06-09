@@ -26,8 +26,8 @@ const CONFIG: Record<AdPlacement, { src?: string; containerId?: string }> = {
 };
 
 const LABELS: Record<AdPlacement, string> = {
-  "chapter-start": "Sponsored — before you read",
-  "chapter-end": "Sponsored — thanks for reading",
+  "chapter-start": "Sponsored before you read",
+  "chapter-end": "Sponsored after the chapter",
   banner: "Advertisement",
 };
 
@@ -59,7 +59,7 @@ export function AdSlot({
 
   return (
     <div className={cn("w-full", className)}>
-      <p className="mb-1 text-center text-[10px] uppercase tracking-wider text-muted-foreground">
+      <p className="mb-1 text-center text-xs uppercase tracking-wider text-muted-foreground">
         {LABELS[placement]}
       </p>
       <div className="flex justify-center">

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Heart, HeartOff } from "lucide-react";
 import { useFavorites } from "@/lib/use-favorites";
 import { MangaGridSkeleton } from "@/components/manga/manga-grid";
+import { buttonClassName } from "@/components/ui/button";
 
 export function FavoritesGrid() {
   const { favorites, isLoading, remove } = useFavorites();
@@ -21,7 +22,7 @@ export function FavoritesGrid() {
         </p>
         <Link
           href="/browse"
-          className="mt-4 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground"
+          className={buttonClassName({ className: "mt-4" })}
         >
           Browse manga
         </Link>
@@ -33,35 +34,44 @@ export function FavoritesGrid() {
     <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
       {favorites.map((f) => (
         <div key={f.id} className="group">
-          <Link href={`/manga/${f.mangaId}`} className="block">
-            <div className="relative aspect-[2/3] overflow-hidden rounded-xl border border-border bg-muted">
-              {f.coverUrl ? (
-                <Image
-                  src={f.coverUrl}
-                  alt={f.title}
-                  fill
-                  sizes="(max-width: 640px) 45vw, 200px"
-                  className="object-cover transition duration-300 group-hover:scale-105"
-                />
-              ) : (
-                <div className="grid h-full place-items-center text-xs text-muted-foreground">
-                  No cover
-                </div>
-              )}
-              <button
-                onClick={(e) => {
-                  e.preventDefault();
-                  remove.mutate(f.mangaId);
-                }}
-                aria-label="Remove from library"
-                className="absolute right-2 top-2 grid h-9 w-9 place-items-center rounded-full bg-black/50 text-white opacity-0 backdrop-blur transition hover:bg-black/70 group-hover:opacity-100"
-              >
-                <HeartOff className="h-4 w-4" />
-              </button>
-            </div>
-          </Link>
+          <div className="relative">
+            <Link
+              href={`/manga/${f.mangaId}`}
+              aria-label={`Open ${f.title}`}
+              className="block rounded-xl focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <div className="relative aspect-[2/3] overflow-hidden rounded-xl border border-border bg-muted">
+                {f.coverUrl ? (
+                  <Image
+                    src={f.coverUrl}
+                    alt={f.title}
+                    fill
+                    sizes="(max-width: 640px) 45vw, 200px"
+                    className="object-cover transition duration-300 group-hover:scale-105"
+                  />
+                ) : (
+                  <div className="grid h-full place-items-center text-xs text-muted-foreground">
+                    No cover
+                  </div>
+                )}
+              </div>
+            </Link>
+            <button
+              type="button"
+              onClick={() => remove.mutate(f.mangaId)}
+              aria-label={`Remove ${f.title} from library`}
+              className="absolute right-2 top-2 grid h-11 w-11 place-items-center rounded-full bg-spotlight/70 text-spotlight-foreground shadow-lg shadow-black/20 backdrop-blur transition hover:bg-spotlight/90"
+            >
+              <HeartOff className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
           <h3 className="mt-2 line-clamp-2 text-sm font-medium leading-snug">
-            {f.title}
+            <Link
+              href={`/manga/${f.mangaId}`}
+              className="rounded-sm transition hover:text-accent focus-visible:text-accent"
+            >
+              {f.title}
+            </Link>
           </h3>
         </div>
       ))}

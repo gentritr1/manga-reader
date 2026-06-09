@@ -5,8 +5,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 export function MangaGrid({ manga }: { manga: SimpleManga[] }) {
   return (
     <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-      {manga.map((m) => (
-        <MangaCard key={m.id} manga={m} />
+      {manga.map((m, index) => (
+        <MangaCard key={m.id} manga={m} eager={index < 6} />
       ))}
     </div>
   );

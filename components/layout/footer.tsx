@@ -1,23 +1,33 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 export function Footer() {
+  const pathname = usePathname();
+
+  if (pathname.startsWith("/read/")) return null;
+
   return (
     <footer className="mt-auto border-t border-border">
       <div className="mx-auto max-w-7xl px-4 py-8 text-sm text-muted-foreground">
         <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
           <p>
-            <span className="font-semibold text-foreground">Yomi</span> — a
+            <span className="font-semibold text-foreground">Yomi</span>. A
             modern manga reader.
           </p>
           <div className="flex items-center gap-4">
-            <Link href="/browse" className="hover:text-foreground">
+            <Link
+              href="/browse"
+              className="inline-flex min-h-11 items-center hover:text-foreground"
+            >
               Browse
             </Link>
             <a
               href="https://mangadex.org"
               target="_blank"
               rel="noopener noreferrer"
-              className="hover:text-foreground"
+              className="inline-flex min-h-11 items-center hover:text-foreground"
             >
               Powered by MangaDex
             </a>

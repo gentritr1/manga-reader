@@ -36,7 +36,7 @@ export function ChapterList({ chapters }: { chapters: SimpleChapter[] }) {
             <p className="truncate text-sm font-medium">
               {chapterLabel(c)}
               {c.title ? (
-                <span className="text-muted-foreground"> — {c.title}</span>
+                <span className="text-muted-foreground"> · {c.title}</span>
               ) : null}
             </p>
             <Meta c={c} />

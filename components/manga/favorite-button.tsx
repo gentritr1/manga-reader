@@ -24,8 +24,9 @@ export function FavoriteButton({
   const router = useRouter();
   const { isFavorite, isAuthenticated, add, remove } = useFavorites();
   const active = isFavorite(mangaId);
+  const busy = add.isPending || remove.isPending;
 
-  const toggle = (e: React.MouseEvent) => {
+  const toggle = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     e.stopPropagation();
     if (!isAuthenticated) {
@@ -41,9 +42,17 @@ export function FavoriteButton({
       <Button
         variant={active ? "secondary" : "default"}
         onClick={toggle}
+        aria-pressed={active}
+        aria-label={
+          active ? `Remove ${title} from library` : `Add ${title} to library`
+        }
+        disabled={busy}
         className={className}
       >
-        <Heart className={cn("h-4 w-4", active && "fill-current text-red-500")} />
+        <Heart
+          aria-hidden="true"
+          className={cn("h-4 w-4", active && "fill-current text-accent-warm")}
+        />
         {active ? "In your library" : "Add to library"}
       </Button>
     );
@@ -51,14 +60,22 @@ export function FavoriteButton({
 
   return (
     <button
+      type="button"
       onClick={toggle}
-      aria-label={active ? "Remove from library" : "Add to library"}
+      aria-label={
+        active ? `Remove ${title} from library` : `Add ${title} to library`
+      }
+      aria-pressed={active}
+      disabled={busy}
       className={cn(
-        "grid h-9 w-9 place-items-center rounded-full bg-black/50 text-white backdrop-blur transition hover:bg-black/70",
+        "grid h-11 w-11 place-items-center rounded-full bg-spotlight/70 text-spotlight-foreground shadow-lg shadow-black/20 backdrop-blur transition hover:bg-spotlight/90 disabled:pointer-events-none disabled:opacity-60",
         className,
       )}
     >
-      <Heart className={cn("h-4 w-4", active && "fill-red-500 text-red-500")} />
+      <Heart
+        aria-hidden="true"
+        className={cn("h-4 w-4", active && "fill-accent-warm text-accent-warm")}
+      />
     </button>
   );
 }

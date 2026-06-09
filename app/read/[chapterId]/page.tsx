@@ -41,7 +41,7 @@ export default async function ReadPage({
   const chapterLabel = info.chapter ? `Chapter ${info.chapter}` : "Oneshot";
   const cover = manga ? coverUrl(manga.id, manga.coverFileName, 256) : null;
 
-  // External / licensed chapters have no in-app pages — show a notice instead.
+  // External / licensed chapters have no in-app pages, so show a notice instead.
   const pages =
     info.externalUrl || info.pages === 0 ? null : await getChapterPages(chapterId);
 

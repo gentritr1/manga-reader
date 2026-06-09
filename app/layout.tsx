@@ -7,7 +7,11 @@ import { Footer } from "@/components/layout/footer";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
-const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+  preload: false,
+});
 
 const DESCRIPTION =
   "Read manga online with a clean, fast, distraction-free reader. Browse thousands of titles, build your library, and pick up right where you left off.";
@@ -15,7 +19,7 @@ const DESCRIPTION =
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "Yomi — Modern Manga Reader",
+    default: "Yomi: Modern Manga Reader",
     template: "%s · Yomi",
   },
   description: DESCRIPTION,
@@ -24,13 +28,13 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: SITE_NAME,
-    title: "Yomi — Modern Manga Reader",
+    title: "Yomi: Modern Manga Reader",
     description: DESCRIPTION,
     url: SITE_URL,
   },
   twitter: {
     card: "summary_large_image",
-    title: "Yomi — Modern Manga Reader",
+    title: "Yomi: Modern Manga Reader",
     description: DESCRIPTION,
   },
 };

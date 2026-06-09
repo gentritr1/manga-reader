@@ -17,7 +17,7 @@ export default async function HomePage() {
   if (popular.length === 0 && latest.length === 0) {
     return (
       <div className="mx-auto max-w-7xl px-4 py-20 text-center">
-        <h1 className="text-2xl font-bold">Couldn’t reach MangaDex</h1>
+        <h1 className="text-2xl font-bold">Could not reach MangaDex</h1>
         <p className="mt-2 text-muted-foreground">
           The manga service is temporarily unavailable. Please try again shortly.
         </p>
@@ -25,25 +25,42 @@ export default async function HomePage() {
     );
   }
 
-  const [featured, ...rest] = popular;
+  const featured = popular[0] ?? latest[0];
+  const popularRail = popular.filter((manga) => manga.id !== featured?.id);
+  const latestRail = latest.filter((manga) => manga.id !== featured?.id);
+  const supportingManga = [...popularRail, ...latestRail].slice(0, 4);
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-12 px-4 py-8">
-      {featured && <Hero manga={featured} />}
+    <div className="w-full">
+      {featured && <Hero manga={featured} supportingManga={supportingManga} />}
 
-      <ContinueReading />
+      <div className="mx-auto w-full max-w-7xl space-y-14 px-4 py-10 sm:py-12">
+        <ContinueReading />
 
-      {rest.length > 0 && (
-        <Section title="Popular now" href="/browse?sort=popular">
-          <MangaCarousel manga={rest} />
-        </Section>
-      )}
+        {popularRail.length > 0 && (
+          <Section
+            title="Reader heat"
+            description="Series pulling attention right now, chosen for quick first chapters and easy library saves."
+            href="/browse?sort=popular"
+            actionLabel="Browse popular"
+          >
+            <MangaCarousel manga={popularRail} />
+          </Section>
+        )}
 
-      <AdSlot placement="banner" />
+        <AdSlot placement="banner" />
 
-      <Section title="Latest updates" href="/browse?sort=latest">
-        <MangaGrid manga={latest} />
-      </Section>
+        {latestRail.length > 0 && (
+          <Section
+            title="Fresh chapter drops"
+            description="New English updates from MangaDex, de-duplicated so every cover points to a different series."
+            href="/browse?sort=latest"
+            actionLabel="Browse updates"
+          >
+            <MangaGrid manga={latestRail} />
+          </Section>
+        )}
+      </div>
     </div>
   );
 }

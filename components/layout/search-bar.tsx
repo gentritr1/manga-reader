@@ -23,7 +23,7 @@ export function SearchBar({ className }: { className?: string }) {
       <Input
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder="Search manga…"
+        placeholder="Search manga..."
         className="pl-9"
         aria-label="Search manga"
       />

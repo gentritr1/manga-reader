@@ -66,7 +66,7 @@ export default async function MangaDetailPage({
   // feed is newest-first; the earliest readable chapter is the last readable one.
   const firstChapter = [...feed.chapters].reverse().find(isReadable);
   const readableCount = feed.chapters.filter(isReadable).length;
-  // All chapters are licensed/official links — nothing can be read in-app.
+  // All chapters are licensed/official links, so nothing can be read in-app.
   const licensedOnly = feed.chapters.length > 0 && readableCount === 0;
 
   const jsonLd = {
@@ -90,7 +90,7 @@ export default async function MangaDetailPage({
       {/* Backdrop */}
       <div className="absolute inset-x-0 top-0 h-72 overflow-hidden">
         {cover && (
-          <Image src={cover} alt="" fill priority className="object-cover opacity-20 blur-2xl" />
+          <Image src={cover} alt="" fill className="object-cover opacity-20 blur-2xl" />
         )}
         <div className="absolute inset-0 bg-gradient-to-b from-transparent to-background" />
       </div>
@@ -99,7 +99,15 @@ export default async function MangaDetailPage({
         <div className="flex flex-col gap-6 sm:flex-row">
           <div className="relative mx-auto aspect-[2/3] w-44 shrink-0 overflow-hidden rounded-xl border border-border shadow-2xl sm:mx-0">
             {cover ? (
-              <Image src={cover} alt={manga.title} fill sizes="176px" className="object-cover" />
+              <Image
+                src={cover}
+                alt={manga.title}
+                fill
+                loading="eager"
+                fetchPriority="high"
+                sizes="176px"
+                className="object-cover"
+              />
             ) : (
               <div className="grid h-full place-items-center text-xs text-muted-foreground">
                 No cover
@@ -166,7 +174,7 @@ export default async function MangaDetailPage({
               <p className="mt-1 text-muted-foreground">
                 The publisher holds the rights, so chapters can’t be read here.
                 Each chapter below links to the official source where you can read
-                it legally — please support the creators.
+                it legally. Please support the creators.
               </p>
             </div>
           )}

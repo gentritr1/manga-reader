@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Search, SlidersHorizontal } from "lucide-react";
@@ -22,7 +22,7 @@ const SORTS: { value: SortOption; label: string }[] = [
   { value: "popular", label: "Most popular" },
   { value: "latest", label: "Latest updates" },
   { value: "rating", label: "Top rated" },
-  { value: "title", label: "Title A–Z" },
+  { value: "title", label: "Title A-Z" },
 ];
 const STATUSES: { value: MangaStatus | ""; label: string }[] = [
   { value: "", label: "Any status" },
@@ -44,6 +44,8 @@ function useDebounced<T>(value: T, delay = 400) {
 export function BrowseClient() {
   const params = useSearchParams();
   const router = useRouter();
+  const searchId = useId();
+  const filtersId = useId();
 
   const [title, setTitle] = useState(params.get("q") ?? "");
   const [sort, setSort] = useState<SortOption>(
@@ -72,7 +74,7 @@ export function BrowseClient() {
   const query = useInfiniteQuery({
     queryKey: ["browse", debouncedTitle, sort, status, genres],
     initialPageParam: 0,
-    queryFn: ({ pageParam }) =>
+    queryFn: ({ pageParam, signal }) =>
       searchMangaClient({
         title: debouncedTitle || undefined,
         sort,
@@ -80,7 +82,7 @@ export function BrowseClient() {
         genres,
         limit: PAGE_SIZE,
         offset: pageParam,
-      }),
+      }, signal),
     getNextPageParam: (lastPage, all) => {
       const loaded = all.reduce((n, p) => n + p.manga.length, 0);
       return loaded < lastPage.total && lastPage.manga.length === PAGE_SIZE
@@ -114,14 +116,28 @@ export function BrowseClient() {
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-8">
+      <div className="mb-6 max-w-2xl space-y-2">
+        <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
+          Browse manga
+        </h1>
+        <p className="text-sm leading-6 text-muted-foreground">
+          New releases, popular series, and genre shelves in one clean scan.
+        </p>
+      </div>
+
       <div className="mb-6 flex flex-col gap-3">
         <div className="flex items-center gap-2">
           <div className="relative flex-1">
+            <label htmlFor={searchId} className="sr-only">
+              Search manga by title
+            </label>
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
+              id={searchId}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="Search by title…"
+              placeholder="Search by title..."
+              aria-label="Search manga by title"
               className="h-11 pl-9"
             />
           </div>
@@ -129,20 +145,25 @@ export function BrowseClient() {
             variant="outline"
             size="lg"
             onClick={() => setShowFilters((s) => !s)}
+            aria-expanded={showFilters}
+            aria-controls={filtersId}
           >
             <SlidersHorizontal className="h-4 w-4" /> Filters
           </Button>
         </div>
 
         {showFilters && (
-          <div className="space-y-4 rounded-xl border border-border bg-card p-4">
+          <div
+            id={filtersId}
+            className="space-y-4 rounded-xl border border-border bg-card p-4"
+          >
             <div className="flex flex-wrap gap-3">
               <label className="flex items-center gap-2 text-sm">
                 <span className="text-muted-foreground">Sort</span>
                 <select
                   value={sort}
                   onChange={(e) => setSort(e.target.value as SortOption)}
-                  className="h-9 rounded-lg border border-border bg-background px-2 text-sm"
+                  className="h-11 rounded-lg border border-border bg-background px-3 text-sm focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   {SORTS.map((s) => (
                     <option key={s.value} value={s.value}>
@@ -156,7 +177,7 @@ export function BrowseClient() {
                 <select
                   value={status}
                   onChange={(e) => setStatus(e.target.value as MangaStatus | "")}
-                  className="h-9 rounded-lg border border-border bg-background px-2 text-sm"
+                  className="h-11 rounded-lg border border-border bg-background px-3 text-sm focus-visible:ring-2 focus-visible:ring-ring"
                 >
                   {STATUSES.map((s) => (
                     <option key={s.value} value={s.value}>
@@ -169,16 +190,18 @@ export function BrowseClient() {
             <div className="max-h-72 space-y-3 overflow-y-auto pr-1">
               {TAG_GROUPS.map((group) => (
                 <div key={group.label} className="space-y-1.5">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  <p className="text-sm font-semibold text-foreground">
                     {group.label}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {group.tags.map((tag) => (
                       <button
+                        type="button"
                         key={tag.id}
                         onClick={() => toggleGenre(tag.id)}
+                        aria-pressed={genres.includes(tag.id)}
                         className={cn(
-                          "rounded-full border px-3 py-1 text-xs font-medium transition",
+                          "min-h-11 rounded-full border px-3 text-sm font-medium transition",
                           genres.includes(tag.id)
                             ? "border-accent bg-accent text-accent-foreground"
                             : "border-border text-muted-foreground hover:text-foreground",
@@ -193,8 +216,10 @@ export function BrowseClient() {
             </div>
             {genres.length > 0 && (
               <button
+                type="button"
                 onClick={() => setGenres([])}
-                className="text-xs font-medium text-accent hover:underline"
+                aria-label={`Clear ${genres.length} selected genre filters`}
+                className="min-h-11 rounded-lg text-sm font-medium text-accent hover:underline"
               >
                 Clear {genres.length} selected
               </button>
@@ -215,14 +240,14 @@ export function BrowseClient() {
             {total.toLocaleString()} result{total === 1 ? "" : "s"}
           </p>
           <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-            {items.map((m) => (
-              <MangaCard key={m.id} manga={m} />
+            {items.map((m, index) => (
+              <MangaCard key={m.id} manga={m} eager={index < 6} />
             ))}
           </div>
           <div ref={sentinel} className="h-12" />
           {query.isFetchingNextPage && (
             <p className="py-4 text-center text-sm text-muted-foreground">
-              Loading more…
+              Loading more...
             </p>
           )}
         </>
