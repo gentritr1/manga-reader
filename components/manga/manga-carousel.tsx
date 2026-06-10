@@ -6,6 +6,34 @@ import { type SimpleManga } from "@/lib/mangadex";
 import { MangaCard } from "./manga-card";
 import { cn } from "@/lib/utils";
 
+function CarouselArrow({
+  dir,
+  show,
+  onScroll,
+}: {
+  dir: 1 | -1;
+  show: boolean;
+  onScroll: (dir: 1 | -1) => void;
+}) {
+  return (
+    <button
+      aria-label={dir === -1 ? "Scroll left" : "Scroll right"}
+      onClick={() => onScroll(dir)}
+      className={cn(
+        "absolute top-[34%] z-10 hidden h-10 w-10 -translate-y-1/2 place-items-center rounded-full border border-border bg-background/90 shadow-lg backdrop-blur transition hover:bg-muted sm:grid",
+        dir === -1 ? "left-0 -translate-x-1/2" : "right-0 translate-x-1/2",
+        show ? "opacity-100" : "pointer-events-none opacity-0",
+      )}
+    >
+      {dir === -1 ? (
+        <ChevronLeft className="h-5 w-5" />
+      ) : (
+        <ChevronRight className="h-5 w-5" />
+      )}
+    </button>
+  );
+}
+
 export function MangaCarousel({ manga }: { manga: SimpleManga[] }) {
   const ref = useRef<HTMLDivElement>(null);
   const [canPrev, setCanPrev] = useState(false);
@@ -36,28 +64,10 @@ export function MangaCarousel({ manga }: { manga: SimpleManga[] }) {
     el.scrollBy({ left: dir * el.clientWidth * 0.85, behavior: "smooth" });
   };
 
-  const Arrow = ({ dir, show }: { dir: 1 | -1; show: boolean }) => (
-    <button
-      aria-label={dir === -1 ? "Scroll left" : "Scroll right"}
-      onClick={() => scroll(dir)}
-      className={cn(
-        "absolute top-[34%] z-10 hidden h-10 w-10 -translate-y-1/2 place-items-center rounded-full border border-border bg-background/90 shadow-lg backdrop-blur transition hover:bg-muted sm:grid",
-        dir === -1 ? "left-0 -translate-x-1/2" : "right-0 translate-x-1/2",
-        show ? "opacity-100" : "pointer-events-none opacity-0",
-      )}
-    >
-      {dir === -1 ? (
-        <ChevronLeft className="h-5 w-5" />
-      ) : (
-        <ChevronRight className="h-5 w-5" />
-      )}
-    </button>
-  );
-
   return (
     <div className="relative">
-      <Arrow dir={-1} show={canPrev} />
-      <Arrow dir={1} show={canNext} />
+      <CarouselArrow dir={-1} show={canPrev} onScroll={scroll} />
+      <CarouselArrow dir={1} show={canNext} onScroll={scroll} />
       <div
         ref={ref}
         className="no-scrollbar flex gap-4 overflow-x-auto scroll-smooth pb-2"

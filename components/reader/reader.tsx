@@ -3,7 +3,7 @@
 /* eslint-disable @next/next/no-img-element */
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ArrowLeft,
   ChevronLeft,
@@ -41,7 +41,9 @@ export function Reader(props: Props) {
   // Restore preferred mode.
   useEffect(() => {
     const saved = localStorage.getItem("reader-mode") as Mode | null;
-    if (saved) setMode(saved);
+    if (saved !== "vertical" && saved !== "paged") return;
+    const frame = requestAnimationFrame(() => setMode(saved));
+    return () => cancelAnimationFrame(frame);
   }, []);
   const changeMode = (m: Mode) => {
     setMode(m);
@@ -108,9 +110,6 @@ export function Reader(props: Props) {
       }
     });
   }, [slide, mode, imageUrls, total]);
-
-  // Reset to intro when chapter changes.
-  useEffect(() => setSlide(0), [props.chapterId]);
 
   const backHref = mangaId ? `/manga/${mangaId}` : "/";
 
