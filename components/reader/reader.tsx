@@ -118,24 +118,24 @@ function ReaderContent(props: Props) {
   const backHref = mangaId ? `/manga/${mangaId}` : "/";
 
   return (
-    <div className="min-h-screen bg-black text-white">
+    <div className="min-h-screen bg-reader-canvas text-reader-foreground">
       <h1 className="sr-only">
         {props.mangaTitle} {props.chapterLabel}
         {props.chapterTitle ? `: ${props.chapterTitle}` : ""}
       </h1>
       {/* Top bar */}
-      <header className="sticky top-0 z-30 flex min-h-14 items-center gap-3 border-b border-white/10 bg-black/80 px-4 backdrop-blur">
+      <header className="sticky top-0 z-30 flex min-h-14 items-center gap-3 border-b border-reader-line bg-reader-chrome px-4 backdrop-blur">
         <Link
           href={backHref}
           aria-label={`Back to ${props.mangaTitle}`}
-          className="flex min-h-11 items-center gap-2 rounded-lg text-sm hover:text-white/80 focus-visible:ring-white/70"
+          className="flex min-h-11 items-center gap-2 rounded-lg text-sm hover:text-reader-muted focus-visible:ring-reader-focus"
         >
           <ArrowLeft className="h-5 w-5" aria-hidden="true" />
           <span className="hidden sm:inline">Back</span>
         </Link>
         <div className="min-w-0 flex-1 text-center">
           <p className="truncate text-sm font-medium">{props.mangaTitle}</p>
-          <p className="truncate text-xs text-white/60">
+          <p className="truncate text-xs text-reader-muted">
             {props.chapterLabel}
             {props.chapterTitle ? `: ${props.chapterTitle}` : ""}
           </p>
@@ -147,8 +147,8 @@ function ReaderContent(props: Props) {
             aria-label="Vertical mode"
             aria-pressed={mode === "vertical"}
             className={cn(
-              "grid h-11 w-11 place-items-center rounded-lg transition hover:bg-white/10 focus-visible:ring-white/70",
-              mode === "vertical" && "bg-white/15",
+              "grid h-11 w-11 place-items-center rounded-lg transition hover:bg-reader-control-hover focus-visible:ring-reader-focus",
+              mode === "vertical" && "bg-reader-control-selected",
             )}
           >
             <Rows3 className="h-5 w-5" aria-hidden="true" />
@@ -159,8 +159,8 @@ function ReaderContent(props: Props) {
             aria-label="Paged mode"
             aria-pressed={mode === "paged"}
             className={cn(
-              "grid h-11 w-11 place-items-center rounded-lg transition hover:bg-white/10 focus-visible:ring-white/70",
-              mode === "paged" && "bg-white/15",
+              "grid h-11 w-11 place-items-center rounded-lg transition hover:bg-reader-control-hover focus-visible:ring-reader-focus",
+              mode === "paged" && "bg-reader-control-selected",
             )}
           >
             <Columns2 className="h-5 w-5" aria-hidden="true" />
@@ -196,7 +196,7 @@ function ChapterNav({
   const router = useRouter();
   const darkButtonClass =
     variant === "dark"
-      ? "border-white/20 text-white hover:bg-white/10 focus-visible:ring-white/70"
+      ? "border-reader-line text-reader-foreground hover:bg-reader-control-hover focus-visible:ring-reader-focus"
       : undefined;
 
   return (
@@ -238,7 +238,7 @@ function VerticalReader(props: Props) {
 
       {/* End / chapter-end ad + nav */}
       <div className="space-y-6 px-4 py-10">
-        <p className="text-center text-sm text-white/60">End of {props.chapterLabel}</p>
+        <p className="text-center text-sm text-reader-muted">End of {props.chapterLabel}</p>
         <ChapterNav prevId={props.prevId} nextId={props.nextId} variant="dark" />
         <AdSlot placement="chapter-end" className="mx-auto max-w-xl" />
       </div>
@@ -276,7 +276,7 @@ function PagedReader({
           <div className="w-full max-w-xl space-y-6 text-center">
             <h2 className="text-lg font-semibold">{chapterLabel}</h2>
             {chapterTitle && (
-              <p className="text-sm text-white/60">{chapterTitle}</p>
+              <p className="text-sm text-reader-muted">{chapterTitle}</p>
             )}
             <Button size="lg" onClick={onNext} aria-label="Start reading">
               Start reading <ChevronRight className="h-4 w-4" aria-hidden="true" />
@@ -284,7 +284,7 @@ function PagedReader({
           </div>
         ) : isEnd ? (
           <div className="w-full max-w-xl space-y-6 text-center">
-            <p className="text-sm text-white/60">End of {chapterLabel}</p>
+            <p className="text-sm text-reader-muted">End of {chapterLabel}</p>
             <ChapterNav prevId={prevId} nextId={nextId} variant="dark" />
             <AdSlot placement="chapter-end" />
           </div>
@@ -318,17 +318,17 @@ function PagedReader({
       )}
 
       {/* Footer controls */}
-      <div className="sticky bottom-0 flex min-h-14 items-center justify-between gap-4 border-t border-white/10 bg-black/80 px-4 py-2 text-sm backdrop-blur">
+      <div className="sticky bottom-0 flex min-h-14 items-center justify-between gap-4 border-t border-reader-line bg-reader-chrome px-4 py-2 text-sm backdrop-blur">
         <button
           type="button"
           disabled={prevDisabled}
           onClick={onPrev}
           aria-label={isIntro ? "Previous chapter" : "Previous page"}
-          className="grid h-11 min-w-11 place-items-center rounded-lg px-3 hover:bg-white/10 focus-visible:ring-white/70 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+          className="grid h-11 min-w-11 place-items-center rounded-lg px-3 hover:bg-reader-control-hover focus-visible:ring-reader-focus disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
         >
           <ChevronLeft className="h-5 w-5" aria-hidden="true" />
         </button>
-        <span className="text-white/70" aria-live="polite">
+        <span className="text-reader-muted" aria-live="polite">
           {isIntro ? "Start" : isEnd ? "End" : `${slide} / ${total}`}
         </span>
         <button
@@ -336,7 +336,7 @@ function PagedReader({
           disabled={nextDisabled}
           onClick={onNext}
           aria-label={isEnd ? "Next chapter" : "Next page"}
-          className="grid h-11 min-w-11 place-items-center rounded-lg px-3 hover:bg-white/10 focus-visible:ring-white/70 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+          className="grid h-11 min-w-11 place-items-center rounded-lg px-3 hover:bg-reader-control-hover focus-visible:ring-reader-focus disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
         >
           <ChevronRight className="h-5 w-5" aria-hidden="true" />
         </button>

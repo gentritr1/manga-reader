@@ -1,8 +1,17 @@
 # Product
 
-## Register
+## Brand Register
 
-brand
+Current working name: Yomi.
+
+Current identity concept: the night shelf for one more chapter.
+
+Yomi should feel like opening a quiet shelf of manga covers at night: immersive
+ink surfaces, warm chapter actions, vivid cover art, and clear paths back into
+reading.
+
+The brand system lives in `BRAND.md`. The implementation tokens and component
+rules live in `DESIGN_SYSTEM.md`.
 
 ## Users
 

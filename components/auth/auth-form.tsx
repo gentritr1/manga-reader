@@ -4,7 +4,7 @@ import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
-import { BookOpen } from "lucide-react";
+import { YomiMark } from "@/components/brand/yomi-mark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -62,9 +62,7 @@ export function AuthForm({
   return (
     <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-sm flex-col justify-center px-4 py-12">
       <div className="mb-8 text-center">
-        <span className="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-2xl bg-accent text-accent-foreground">
-          <BookOpen className="h-6 w-6" />
-        </span>
+        <YomiMark className="mx-auto mb-4 h-12 w-12 [filter:drop-shadow(0_10px_18px_rgb(36_19_95_/_0.18))]" />
         <h1 className="text-2xl font-bold">
           {isSignup ? "Create your account" : "Welcome back"}
         </h1>
@@ -117,7 +115,7 @@ export function AuthForm({
           required
           minLength={isSignup ? 8 : undefined}
         />
-        {error && <p className="text-sm text-red-500">{error}</p>}
+        {error && <p className="text-sm text-danger">{error}</p>}
         <Button type="submit" size="lg" className="w-full" disabled={loading}>
           {loading ? "Please wait…" : isSignup ? "Create account" : "Log in"}
         </Button>

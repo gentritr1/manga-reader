@@ -14,10 +14,10 @@ export function FavoritesGrid() {
 
   if (favorites.length === 0) {
     return (
-      <div className="grid place-items-center rounded-2xl border border-dashed border-border py-24 text-center">
-        <Heart className="mb-3 h-10 w-10 text-muted-foreground" />
+      <div className="grid place-items-center rounded-card border border-dashed border-line-subtle py-24 text-center">
+        <Heart className="mb-3 h-10 w-10 text-content-secondary" />
         <p className="text-lg font-medium">Your library is empty</p>
-        <p className="mt-1 max-w-sm text-sm text-muted-foreground">
+        <p className="mt-1 max-w-sm text-sm text-content-secondary">
           Tap the heart on any manga to save it here and sync across devices.
         </p>
         <Link
@@ -38,9 +38,9 @@ export function FavoritesGrid() {
             <Link
               href={`/manga/${f.mangaId}`}
               aria-label={`Open ${f.title}`}
-              className="block rounded-xl focus-visible:ring-2 focus-visible:ring-ring"
+              className="block rounded-cover focus-visible:ring-2 focus-visible:ring-focus"
             >
-              <div className="relative aspect-[2/3] overflow-hidden rounded-xl border border-border bg-muted">
+              <div className="relative aspect-[2/3] overflow-hidden rounded-cover border border-line-subtle bg-surface-muted">
                 {f.coverUrl ? (
                   <Image
                     src={f.coverUrl}
@@ -50,7 +50,7 @@ export function FavoritesGrid() {
                     className="object-cover transition duration-300 group-hover:scale-105"
                   />
                 ) : (
-                  <div className="grid h-full place-items-center text-xs text-muted-foreground">
+                  <div className="grid h-full place-items-center text-xs text-content-secondary">
                     No cover
                   </div>
                 )}
@@ -60,7 +60,7 @@ export function FavoritesGrid() {
               type="button"
               onClick={() => remove.mutate(f.mangaId)}
               aria-label={`Remove ${f.title} from library`}
-              className="absolute right-2 top-2 grid h-11 w-11 place-items-center rounded-full bg-spotlight/70 text-spotlight-foreground shadow-lg shadow-black/20 backdrop-blur transition hover:bg-spotlight/90"
+              className="absolute right-2 top-2 grid h-11 w-11 place-items-center rounded-full bg-surface-spotlight/70 text-content-inverse [box-shadow:var(--elevation-panel)] backdrop-blur transition hover:bg-surface-spotlight/90"
             >
               <HeartOff className="h-4 w-4" aria-hidden="true" />
             </button>
@@ -68,7 +68,7 @@ export function FavoritesGrid() {
           <h3 className="mt-2 line-clamp-2 text-sm font-medium leading-snug">
             <Link
               href={`/manga/${f.mangaId}`}
-              className="rounded-sm transition hover:text-accent focus-visible:text-accent"
+              className="rounded-sm transition hover:text-brand-primary focus-visible:text-brand-primary"
             >
               {f.title}
             </Link>

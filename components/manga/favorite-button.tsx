@@ -11,6 +11,7 @@ interface Props {
   title: string;
   coverUrl?: string | null;
   variant?: "icon" | "full";
+  size?: "sm" | "md" | "lg" | "icon";
   className?: string;
 }
 
@@ -19,6 +20,7 @@ export function FavoriteButton({
   title,
   coverUrl,
   variant = "icon",
+  size = "md",
   className,
 }: Props) {
   const router = useRouter();
@@ -40,7 +42,8 @@ export function FavoriteButton({
   if (variant === "full") {
     return (
       <Button
-        variant={active ? "secondary" : "default"}
+        variant={active ? "library" : "outline"}
+        size={size}
         onClick={toggle}
         aria-pressed={active}
         aria-label={
@@ -51,9 +54,19 @@ export function FavoriteButton({
       >
         <Heart
           aria-hidden="true"
-          className={cn("h-4 w-4", active && "fill-current text-accent-warm")}
+          className={cn("h-4 w-4", active && "fill-current text-library")}
         />
-        {active ? "In your library" : "Add to library"}
+        {active ? (
+          <>
+            <span className="sm:hidden">Saved</span>
+            <span className="hidden sm:inline">In your library</span>
+          </>
+        ) : (
+          <>
+            <span className="sm:hidden">Save</span>
+            <span className="hidden sm:inline">Add to library</span>
+          </>
+        )}
       </Button>
     );
   }
@@ -68,13 +81,13 @@ export function FavoriteButton({
       aria-pressed={active}
       disabled={busy}
       className={cn(
-        "grid h-11 w-11 place-items-center rounded-full bg-spotlight/70 text-spotlight-foreground shadow-lg shadow-black/20 backdrop-blur transition hover:bg-spotlight/90 disabled:pointer-events-none disabled:opacity-60",
+        "grid h-11 w-11 place-items-center rounded-full bg-surface-spotlight/70 text-content-inverse [box-shadow:var(--elevation-panel)] backdrop-blur transition hover:bg-surface-spotlight/90 disabled:pointer-events-none disabled:opacity-60",
         className,
       )}
     >
       <Heart
         aria-hidden="true"
-        className={cn("h-4 w-4", active && "fill-accent-warm text-accent-warm")}
+        className={cn("h-4 w-4", active && "fill-library text-library")}
       />
     </button>
   );

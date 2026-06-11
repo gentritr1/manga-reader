@@ -88,7 +88,7 @@ export function UserMenu() {
           <button
             type="button"
             onClick={() => signOut({ callbackUrl: "/" })}
-            className="flex min-h-11 w-full items-center gap-2 px-4 text-sm text-accent-warm hover:bg-muted focus-visible:bg-muted"
+            className="flex min-h-11 w-full items-center gap-2 px-4 text-sm text-danger hover:bg-muted focus-visible:bg-muted"
           >
             <LogOut className="h-4 w-4" /> Sign out
           </button>

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { YomiMark } from "@/components/brand/yomi-mark";
 
 export function Footer() {
   const pathname = usePathname();
@@ -12,9 +13,12 @@ export function Footer() {
     <footer className="mt-auto border-t border-border">
       <div className="mx-auto max-w-7xl px-4 py-8 text-sm text-muted-foreground">
         <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
-          <p>
-            <span className="font-semibold text-foreground">Yomi</span>. A
-            modern manga reader.
+          <p className="flex items-center gap-2">
+            <YomiMark className="h-7 w-7 shrink-0" />
+            <span>
+              <span className="font-semibold text-foreground">Yomi</span>. A
+              modern manga reader.
+            </span>
           </p>
           <div className="flex items-center gap-4">
             <Link

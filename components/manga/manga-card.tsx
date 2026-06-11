@@ -2,13 +2,15 @@ import Image from "next/image";
 import Link from "next/link";
 import { coverUrl, type SimpleManga } from "@/lib/mangadex";
 import { FavoriteButton } from "./favorite-button";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 const STATUS_STYLES: Record<string, string> = {
-  ongoing: "bg-status-ongoing",
-  completed: "bg-status-completed",
-  hiatus: "bg-status-hiatus",
-  cancelled: "bg-status-cancelled",
+  ongoing: "bg-status-ongoing text-status-ongoing-foreground",
+  completed: "bg-status-completed text-status-completed-foreground",
+  hiatus: "bg-status-hiatus text-status-hiatus-foreground",
+  cancelled: "bg-status-cancelled text-status-cancelled-foreground",
+  unknown: "bg-status-unknown text-status-unknown-foreground",
 };
 
 export function MangaCard({
@@ -26,9 +28,9 @@ export function MangaCard({
         <Link
           href={`/manga/${manga.id}`}
           aria-label={`Open ${manga.title}`}
-          className="block rounded-xl focus-visible:ring-2 focus-visible:ring-ring"
+          className="block rounded-cover focus-visible:ring-2 focus-visible:ring-focus"
         >
-          <div className="relative aspect-[2/3] overflow-hidden rounded-xl border border-border bg-muted">
+          <div className="relative aspect-[2/3] overflow-hidden rounded-cover border border-line-subtle bg-surface-muted">
             {cover ? (
               <Image
                 src={cover}
@@ -40,18 +42,18 @@ export function MangaCard({
                 className="object-cover transition duration-300 group-hover:scale-105"
               />
             ) : (
-              <div className="grid h-full place-items-center text-xs text-muted-foreground">
+              <div className="grid h-full place-items-center text-xs text-content-secondary">
                 No cover
               </div>
             )}
 
-            <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-spotlight/80 to-transparent" />
+            <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-surface-spotlight/80 to-transparent" />
 
             {manga.status && (
               <span
                 className={cn(
-                  "absolute left-2 top-2 rounded-full px-2 py-0.5 text-xs font-semibold capitalize text-spotlight-foreground shadow-sm",
-                  STATUS_STYLES[manga.status] ?? "bg-muted-foreground",
+                  "absolute left-2 top-2 rounded-full px-2 py-0.5 text-xs font-semibold capitalize shadow-sm",
+                  STATUS_STYLES[manga.status] ?? STATUS_STYLES.unknown,
                 )}
               >
                 {manga.status}
@@ -59,9 +61,9 @@ export function MangaCard({
             )}
 
             {manga.lastChapter && (
-              <span className="absolute bottom-2 left-2 rounded-md bg-spotlight/70 px-2 py-0.5 text-xs font-medium text-spotlight-foreground backdrop-blur">
+              <Badge variant="chapter" className="absolute bottom-2 left-2 px-2 py-0.5 text-xs backdrop-blur rounded-md">
                 Ch. {manga.lastChapter}
-              </span>
+              </Badge>
             )}
           </div>
         </Link>
@@ -78,7 +80,7 @@ export function MangaCard({
       <h3 className="mt-2 text-sm font-medium leading-snug">
         <Link
           href={`/manga/${manga.id}`}
-          className="line-clamp-2 block min-h-11 rounded-sm pt-1 transition hover:text-accent focus-visible:text-accent"
+          className="line-clamp-2 block min-h-11 rounded-sm pt-1 transition hover:text-brand-primary focus-visible:text-brand-primary"
         >
           {manga.title}
         </Link>

@@ -96,8 +96,8 @@ export default async function MangaDetailPage({
       </div>
 
       <div className="relative mx-auto max-w-5xl px-4 py-8">
-        <div className="flex flex-col gap-6 sm:flex-row">
-          <div className="relative mx-auto aspect-[2/3] w-44 shrink-0 overflow-hidden rounded-xl border border-border shadow-2xl sm:mx-0">
+        <div className="flex flex-col gap-5 min-[480px]:flex-row min-[480px]:gap-6">
+          <div className="relative aspect-[2/3] w-36 shrink-0 overflow-hidden rounded-cover border border-line-subtle shadow-2xl min-[480px]:w-44">
             {cover ? (
               <Image
                 src={cover}
@@ -105,7 +105,7 @@ export default async function MangaDetailPage({
                 fill
                 loading="eager"
                 fetchPriority="high"
-                sizes="176px"
+                sizes="(max-width: 480px) 144px, 176px"
                 className="object-cover"
               />
             ) : (
@@ -117,7 +117,7 @@ export default async function MangaDetailPage({
 
           <div className="min-w-0 flex-1 space-y-4">
             <div>
-              <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
+              <h1 className="text-xl font-extrabold tracking-tight min-[480px]:text-2xl sm:text-3xl">
                 {manga.title}
               </h1>
               {manga.author && (
@@ -130,15 +130,15 @@ export default async function MangaDetailPage({
                 <Badge className="capitalize">{manga.status}</Badge>
               )}
               {manga.year && <Badge>{manga.year}</Badge>}
-              {manga.tags.map((t) => (
+              {manga.tags.slice(0, 5).map((t) => (
                 <Badge key={t}>{t}</Badge>
               ))}
             </div>
 
             <div className="flex flex-wrap gap-2">
               {firstChapter && (
-                <Link href={`/read/${firstChapter.id}`}>
-                  <Button size="lg">
+                <Link href={`/read/${firstChapter.id}`} className="flex-1 min-[480px]:flex-none">
+                  <Button size="lg" className="w-full min-[480px]:w-auto">
                     <BookOpen className="h-5 w-5" /> Start reading
                   </Button>
                 </Link>
@@ -148,6 +148,7 @@ export default async function MangaDetailPage({
                 title={manga.title}
                 coverUrl={cover}
                 variant="full"
+                size="lg"
               />
             </div>
 
@@ -167,11 +168,11 @@ export default async function MangaDetailPage({
             </span>
           </h2>
           {licensedOnly && (
-            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm">
-              <p className="font-medium text-amber-600 dark:text-amber-400">
+            <div className="rounded-card border border-warning-line bg-warning-surface p-4 text-sm text-warning-content">
+              <p className="font-medium">
                 This title is officially licensed
               </p>
-              <p className="mt-1 text-muted-foreground">
+              <p className="mt-1 text-warning-content/80">
                 The publisher holds the rights, so chapters can’t be read here.
                 Each chapter below links to the official source where you can read
                 it legally. Please support the creators.

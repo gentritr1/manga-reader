@@ -143,7 +143,6 @@ export function BrowseClient() {
           </div>
           <Button
             variant="outline"
-            size="lg"
             onClick={() => setShowFilters((s) => !s)}
             aria-expanded={showFilters}
             aria-controls={filtersId}

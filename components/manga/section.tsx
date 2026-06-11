@@ -22,7 +22,7 @@ export function Section({
             {title}
           </h2>
           {description && (
-            <p className="text-sm leading-6 text-muted-foreground sm:text-base">
+            <p className="text-sm leading-6 text-content-secondary sm:text-base">
               {description}
             </p>
           )}
@@ -31,7 +31,7 @@ export function Section({
           <Link
             href={href}
             aria-label={`${actionLabel}: ${title}`}
-            className="inline-flex min-h-11 items-center gap-1 self-start rounded-lg text-sm font-medium text-muted-foreground transition hover:text-accent focus-visible:text-accent sm:self-auto"
+            className="inline-flex min-h-11 items-center gap-1 self-start rounded-lg text-sm font-medium text-content-secondary transition hover:text-brand-primary focus-visible:text-brand-primary sm:self-auto"
           >
             {actionLabel} <ArrowRight className="h-4 w-4" />
           </Link>

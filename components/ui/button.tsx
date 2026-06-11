@@ -1,16 +1,18 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-type Variant = "default" | "outline" | "ghost" | "secondary";
+type Variant = "default" | "outline" | "ghost" | "secondary" | "library";
 type Size = "sm" | "md" | "lg" | "icon";
 
 const variants: Record<Variant, string> = {
   default:
-    "bg-accent text-accent-foreground hover:opacity-90 shadow-sm shadow-accent/20",
+    "bg-action-primary text-action-primary-foreground hover:brightness-110 shadow-sm shadow-action-primary/20",
   outline:
-    "border border-border bg-transparent hover:bg-muted text-foreground",
-  ghost: "bg-transparent hover:bg-muted text-foreground",
-  secondary: "bg-muted text-foreground hover:bg-border",
+    "border border-line-subtle bg-transparent text-content-primary hover:bg-surface-muted",
+  ghost: "bg-transparent text-content-primary hover:bg-surface-muted",
+  secondary: "bg-surface-muted text-content-primary hover:bg-line-subtle",
+  library:
+    "border border-library-line bg-library-surface text-library-foreground hover:bg-library-surface/80",
 };
 
 const sizes: Record<Size, string> = {
