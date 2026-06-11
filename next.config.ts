@@ -1,9 +1,6 @@
 import type { NextConfig } from "next";
-import { dirname } from "node:path";
-import { fileURLToPath } from "node:url";
 import { networkInterfaces } from "node:os";
 
-const projectRoot = dirname(fileURLToPath(import.meta.url));
 const envDevOrigins = (process.env.NEXT_ALLOWED_DEV_ORIGINS ?? "")
   .split(",")
   .map((origin) => origin.trim())
@@ -17,7 +14,7 @@ const allowedDevOrigins = [...new Set([...envDevOrigins, ...lanDevOrigins])];
 const nextConfig: NextConfig = {
   ...(allowedDevOrigins.length > 0 ? { allowedDevOrigins } : {}),
   turbopack: {
-    root: projectRoot,
+    root: process.cwd(),
   },
   images: {
     remotePatterns: [

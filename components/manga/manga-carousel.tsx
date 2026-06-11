@@ -10,18 +10,18 @@ function CarouselArrow({
   dir,
   show,
   railId,
-  onClick,
+  onScroll,
 }: {
   dir: 1 | -1;
   show: boolean;
   railId: string;
-  onClick: () => void;
+  onScroll: (dir: 1 | -1) => void;
 }) {
   return (
     <button
       aria-label={dir === -1 ? "Scroll left" : "Scroll right"}
       aria-controls={railId}
-      onClick={onClick}
+      onClick={() => onScroll(dir)}
       className={cn(
         "absolute top-[34%] z-10 hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-border bg-background/90 shadow-lg backdrop-blur transition hover:bg-muted sm:grid",
         dir === -1 ? "left-2" : "right-2",
@@ -80,13 +80,13 @@ export function MangaCarousel({ manga }: { manga: SimpleManga[] }) {
         dir={-1}
         show={canPrev}
         railId={railId}
-        onClick={() => scroll(-1)}
+        onScroll={scroll}
       />
       <CarouselArrow
         dir={1}
         show={canNext}
         railId={railId}
-        onClick={() => scroll(1)}
+        onScroll={scroll}
       />
       <div
         id={railId}

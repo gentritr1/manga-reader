@@ -36,16 +36,19 @@ export function Reader(props: Props) {
 function ReaderContent(props: Props) {
   const { imageUrls, prevId, nextId, mangaId } = props;
   const router = useRouter();
-  const [mode, setMode] = useState<Mode>(() => {
-    if (typeof window === "undefined") return "vertical";
-    const saved = window.localStorage.getItem("reader-mode");
-    return saved === "paged" || saved === "vertical" ? saved : "vertical";
-  });
+  const [mode, setMode] = useState<Mode>("vertical");
   // Paged slides: 0 = intro, 1..N = pages, N+1 = end.
   const [slide, setSlide] = useState(0);
   const total = imageUrls.length;
   const lastSlide = total + 1;
 
+  // Restore preferred mode.
+  useEffect(() => {
+    const saved = localStorage.getItem("reader-mode") as Mode | null;
+    if (saved !== "vertical" && saved !== "paged") return;
+    const frame = requestAnimationFrame(() => setMode(saved));
+    return () => cancelAnimationFrame(frame);
+  }, []);
   const changeMode = (m: Mode) => {
     setMode(m);
     localStorage.setItem("reader-mode", m);

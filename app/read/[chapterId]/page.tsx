@@ -65,6 +65,7 @@ export default async function ReadPage({
 
   return (
     <Reader
+      key={chapterId}
       chapterId={chapterId}
       imageUrls={imageUrls}
       chapterLabel={chapterLabel}
