@@ -1,13 +1,12 @@
-// Default datasource is SQLite so the app runs locally with zero setup.
-// For production, switch provider to "postgresql" and set DATABASE_URL to your
-// Neon/Supabase connection string (see README).
+// Use Postgres for deployed environments. Set DATABASE_URL to your hosted
+// database connection string, such as Neon, Supabase, or Vercel Postgres.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 

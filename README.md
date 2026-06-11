@@ -44,7 +44,7 @@ with a license that clearly allows self-hosted web serving.
 ```bash
 npm install
 cp .env.example .env.local        # then edit values (see below)
-npx prisma db push                # creates the SQLite dev database
+npx prisma db push                # creates/updates the database schema
 npm run dev                       # http://localhost:3000
 ```
 
@@ -61,11 +61,12 @@ npm run dev                       # http://localhost:3000
 
 ## Database
 
-Local development uses **SQLite** out of the box (no setup). For production, use Postgres:
+The app uses **Postgres** through Prisma. Create a hosted database with Neon,
+Supabase, Vercel Postgres, or another Postgres provider, then:
 
-1. In `prisma/schema.prisma`, change `provider = "sqlite"` to `provider = "postgresql"`.
-2. Set `DATABASE_URL` to your Neon / Supabase connection string.
-3. Run `npx prisma db push` (or `npx prisma migrate deploy`).
+1. Set `DATABASE_URL` to the hosted Postgres connection string.
+2. Run `npx prisma db push` against that database.
+3. Add the same `DATABASE_URL` in Vercel project environment variables.
 
 ## Ads (Adsterra)
 
