@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { Navbar } from "@/components/layout/navbar";
@@ -11,7 +12,7 @@ const DESCRIPTION =
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
-    default: "Yomi — Modern Manga Reader",
+    default: "Yomi: Modern Manga Reader",
     template: "%s · Yomi",
   },
   description: DESCRIPTION,
@@ -20,13 +21,13 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: SITE_NAME,
-    title: "Yomi — Modern Manga Reader",
+    title: "Yomi: Modern Manga Reader",
     description: DESCRIPTION,
     url: SITE_URL,
   },
   twitter: {
     card: "summary_large_image",
-    title: "Yomi — Modern Manga Reader",
+    title: "Yomi: Modern Manga Reader",
     description: DESCRIPTION,
   },
 };
@@ -38,14 +39,24 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
+      data-scroll-behavior="smooth"
       className="h-full antialiased"
     >
       <body className="min-h-full flex flex-col">
         <Providers>
+          <a
+            href="#main-content"
+            className="sr-only z-50 rounded-lg bg-surface-panel px-4 py-2 text-content-primary focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:[box-shadow:var(--elevation-panel)]"
+          >
+            Skip to content
+          </a>
           <Navbar />
-          <main className="flex flex-1 flex-col">{children}</main>
+          <main id="main-content" className="flex flex-1 flex-col">
+            {children}
+          </main>
           <Footer />
         </Providers>
+        <Analytics />
       </body>
     </html>
   );

@@ -1,23 +1,43 @@
-# Yomi — Modern Manga Reader
+# Yomi — Manga Discovery Reader
 
-A sleek, fast, distraction-free manga reader built with **Next.js 16**, powered by the
-open-source **MangaDex API**. Includes accounts (email + Google), a synced favorites
-library, reading history, and pluggable **Adsterra** ad slots (an AdSense alternative that
-works in regions like Kosovo).
+Yomi is a premium, mobile-first manga discovery and reading app built with
+**Next.js 16** and powered by the open-source **MangaDex API**.
+
+The product direction is a "night shelf": cover-led discovery, fast paths into
+the next chapter, a calm library layer, and a UI that feels deliberate rather
+than aggregator-like. Accounts, synced favorites, reading history, Vercel
+Analytics, and optional Adsterra slots are included.
 
 ## Features
 
-- 🔍 **Browse & search** thousands of titles with genre / status / sort filters and infinite scroll
-- 📖 **Clean reader** — vertical (webtoon) and paged modes, keyboard navigation, image preloading
-- ❤️ **Favorites library** + **Continue reading** shelf, synced to your account
-- 🔐 **Auth** — email/password and optional Google sign-in (Auth.js + Prisma)
-- 📣 **Ad slots** on chapter intro / end / browse pages (the image reader stays ad-free)
-- 🌗 Dark-first theme with light toggle, responsive and mobile-friendly
+- Browse and search thousands of titles with genre, status, sort filters, and
+  infinite scroll.
+- Read in vertical webtoon or paged modes with keyboard navigation and image
+  preloading.
+- Save favorites and resume reading with account-backed library/history.
+- Sign in with email/password or optional Google OAuth.
+- Keep the image reader ad-free while supporting optional intro/end/browse ad
+  placements.
+- Use a token-based dark/light design system with mobile-first homepage
+  discovery.
 
 ## Tech stack
 
 Next.js 16 (App Router) · TypeScript · Tailwind CSS v4 · Auth.js (NextAuth v5) · Prisma ·
-TanStack Query · MangaDex API
+TanStack Query · MangaDex API · Vercel Analytics
+
+## Product and design source of truth
+
+- `PRODUCT.md` defines the product target, audience, principles, and
+  accessibility baseline.
+- `BRAND.md` defines the current Yomi identity, voice, allowed motifs, and
+  forbidden patterns.
+- `DESIGN_SYSTEM.md` defines semantic tokens, component rules, migration order,
+  and open design decisions.
+
+New UI should use the semantic tokens in `app/globals.css` instead of adding
+one-off colors. Local webfont files are ignored until a brand font is selected
+with a license that clearly allows self-hosted web serving.
 
 ## Getting started
 
@@ -85,10 +105,22 @@ app/            routes (home, browse, manga/[id], read/[chapterId], login, signu
 components/     ui primitives, layout chrome, manga cards, reader, ads, auth
 lib/            mangadex client/server, auth, prisma, hooks
 prisma/         schema + dev.db
+BRAND.md        Yomi brand identity and voice
+DESIGN_SYSTEM.md semantic token and component rules
 ```
 
 ## Scripts
 
 - `npm run dev` — dev server
-- `npm run build` / `npm start` — production
+- `npm run lint` — ESLint
+- `npm run build` — Prisma generate + production Next.js build, matching the
+  main Vercel build gate
+- `npm start` — run the production build locally
 - `npx prisma studio` — inspect the database
+
+Before pushing to `main` or relying on Vercel, run:
+
+```bash
+npm run lint
+npm run build
+```
