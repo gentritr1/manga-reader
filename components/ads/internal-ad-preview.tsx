@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
+import Script from "next/script";
 import { cn } from "@/lib/utils";
 
 type AdsterraAdPlacement = "banner" | "feed" | "rectangle" | "reader";
@@ -49,7 +50,7 @@ type AtOptions = {
   params: Record<string, never>;
 };
 
-const SOCIAL_SCRIPT_ID = "adsterra-social-script";
+const SOCIAL_SCRIPT_PREFIX = "adsterra-social-script-";
 
 function injectScript({
   id,
@@ -77,9 +78,16 @@ function injectScript({
 export function AdsterraSocialAd() {
   const { data: session, status } = useSession();
   const userId = session?.user?.id;
+  const [scriptState, setScriptState] = useState<{
+    userId: string;
+    url: string;
+    run: number;
+  } | null>(null);
 
   useEffect(() => {
-    document.getElementById(SOCIAL_SCRIPT_ID)?.remove();
+    document
+      .querySelectorAll(`script[id^="${SOCIAL_SCRIPT_PREFIX}"]`)
+      .forEach((script) => script.remove());
 
     if (status !== "authenticated" || !userId) return;
 
@@ -98,21 +106,39 @@ export function AdsterraSocialAd() {
       .then((data: AdAccessResponse) => {
         if (!active || !data.show || !data.socialScriptUrl) return;
 
-        injectScript({
-          id: SOCIAL_SCRIPT_ID,
-          src: data.socialScriptUrl,
-          parent: document.body,
-        });
+        setScriptState((current) => ({
+          userId,
+          url: data.socialScriptUrl as string,
+          run: current?.userId === userId ? current.run + 1 : 1,
+        }));
       })
       .catch(() => {});
 
     return () => {
       active = false;
-      document.getElementById(SOCIAL_SCRIPT_ID)?.remove();
+      document
+        .querySelectorAll(`script[id^="${SOCIAL_SCRIPT_PREFIX}"]`)
+        .forEach((script) => script.remove());
     };
   }, [status, userId]);
 
-  return null;
+  if (
+    status !== "authenticated" ||
+    !userId ||
+    !scriptState ||
+    scriptState.userId !== userId
+  ) {
+    return null;
+  }
+
+  return (
+    <Script
+      id={`${SOCIAL_SCRIPT_PREFIX}${userId}-${scriptState.run}`}
+      src={scriptState.url}
+      strategy="afterInteractive"
+      data-cfasync="false"
+    />
+  );
 }
 
 export function AdsterraAdSlot({
