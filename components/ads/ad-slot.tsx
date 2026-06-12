@@ -62,6 +62,7 @@ export function AdSlot({
 }) {
   const config = CONFIG[placement];
   const src = config.type === "native" ? config.src : iframeSrc(config.key);
+  const scriptId = `adsterra-${placement}`;
   const configured =
     ADS_ENABLED &&
     src &&
@@ -98,23 +99,33 @@ export function AdSlot({
           dangerouslySetInnerHTML={{
             __html: `
               window.atOptions = {
-                key: "${config.key}",
+                key: ${JSON.stringify(config.key)},
                 format: "iframe",
                 height: ${config.height},
                 width: ${config.width},
                 params: {}
               };
+              if (!document.getElementById(${JSON.stringify(scriptId)})) {
+                var script = document.createElement("script");
+                script.id = ${JSON.stringify(scriptId)};
+                script.src = ${JSON.stringify(src)};
+                script.async = false;
+                script.setAttribute("data-cfasync", "false");
+                document.currentScript.after(script);
+              }
             `,
           }}
         />
       )}
-      <Script
-        id={`adsterra-${placement}`}
-        src={src}
-        strategy={config.type === "iframe" ? "afterInteractive" : "lazyOnload"}
-        async
-        data-cfasync="false"
-      />
+      {config.type === "native" && (
+        <Script
+          id={scriptId}
+          src={src}
+          strategy="lazyOnload"
+          async
+          data-cfasync="false"
+        />
+      )}
     </div>
   );
 }
