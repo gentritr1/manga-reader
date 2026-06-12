@@ -74,9 +74,19 @@ AdSense is unavailable in some regions, so this uses **Adsterra** behind a reusa
 `<AdSlot>` component. To enable:
 
 1. Create an Adsterra publisher account and add your site.
-2. Create **Native Banner** ad units for the placements you want.
-3. Paste each unit's `invoke.js` src and container id into `.env.local`
-   (`NEXT_PUBLIC_ADSTERRA_*`), and set `NEXT_PUBLIC_ADS_ENABLED="true"`.
+2. Create ad units for the placements you want. The bundled slots support a native banner
+   at chapter start, a 300x250 iframe at chapter end, and a 728x90 iframe banner.
+3. For native ads, set both the `invoke.js` src URL and container id. For iframe ads,
+   set only the iframe key. Enable rendering with `NEXT_PUBLIC_ADS_ENABLED="true"`.
+
+Placement mapping:
+
+```env
+NEXT_PUBLIC_ADSTERRA_CHAPTER_START_SRC=""       # native invoke.js URL
+NEXT_PUBLIC_ADSTERRA_CHAPTER_START_CONTAINER="" # native container id
+NEXT_PUBLIC_ADSTERRA_CHAPTER_END_KEY=""         # 300x250 iframe key
+NEXT_PUBLIC_ADSTERRA_BANNER_KEY=""              # 728x90 iframe key
+```
 
 Ads render on the **chapter intro screen**, the **chapter end screen**, and **browse/home
 banners** — never overlaid on the manga page images. This respects the MangaDex API Terms
