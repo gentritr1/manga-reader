@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import Script from "next/script";
 import { cn } from "@/lib/utils";
 
@@ -21,6 +22,14 @@ type IframeAdConfig = {
 };
 
 type AdConfig = NativeAdConfig | IframeAdConfig;
+
+type AtOptions = {
+  key: string;
+  format: "iframe";
+  height: number;
+  width: number;
+  params: Record<string, never>;
+};
 
 const iframeSrc = (key?: string) =>
   key ? `https://www.highperformanceformat.com/${key}/invoke.js` : undefined;
@@ -63,10 +72,42 @@ export function AdSlot({
   const config = CONFIG[placement];
   const src = config.type === "native" ? config.src : iframeSrc(config.key);
   const scriptId = `adsterra-${placement}`;
+  const iframeContainerRef = useRef<HTMLDivElement>(null);
   const configured =
     ADS_ENABLED &&
     src &&
     (config.type === "iframe" || (config.type === "native" && config.containerId));
+
+  useEffect(() => {
+    if (!configured || config.type !== "iframe" || !src) return;
+
+    const container = iframeContainerRef.current;
+    if (!container) return;
+
+    container.innerHTML = "";
+
+    const atOptions: AtOptions = {
+      key: config.key ?? "",
+      format: "iframe",
+      height: config.height,
+      width: config.width,
+      params: {},
+    };
+
+    (window as Window & { atOptions?: AtOptions }).atOptions = atOptions;
+
+    const script = document.createElement("script");
+    script.id = scriptId;
+    script.src = src;
+    script.async = false;
+    script.setAttribute("data-cfasync", "false");
+    container.appendChild(script);
+
+    return () => {
+      script.remove();
+      container.innerHTML = "";
+    };
+  }, [config, configured, scriptId, src]);
 
   // Show a labelled placeholder in development so slots are visible during
   // layout work. In production an unconfigured/disabled slot renders nothing.
@@ -91,32 +132,8 @@ export function AdSlot({
       </p>
       <div className="flex justify-center">
         {config.type === "native" ? <div id={config.containerId} /> : null}
+        {config.type === "iframe" ? <div ref={iframeContainerRef} /> : null}
       </div>
-      {config.type === "iframe" && (
-        <Script
-          id={`adsterra-options-${placement}`}
-          strategy="afterInteractive"
-          dangerouslySetInnerHTML={{
-            __html: `
-              window.atOptions = {
-                key: ${JSON.stringify(config.key)},
-                format: "iframe",
-                height: ${config.height},
-                width: ${config.width},
-                params: {}
-              };
-              if (!document.getElementById(${JSON.stringify(scriptId)})) {
-                var script = document.createElement("script");
-                script.id = ${JSON.stringify(scriptId)};
-                script.src = ${JSON.stringify(src)};
-                script.async = false;
-                script.setAttribute("data-cfasync", "false");
-                document.currentScript.after(script);
-              }
-            `,
-          }}
-        />
-      )}
       {config.type === "native" && (
         <Script
           id={scriptId}

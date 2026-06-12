@@ -224,6 +224,10 @@ function ChapterNav({
 function VerticalReader(props: Props) {
   return (
     <div className="mx-auto max-w-3xl">
+      <div className="px-4 py-8">
+        <AdSlot placement="chapter-start" className="mx-auto max-w-xl" />
+      </div>
+
       <div className="flex flex-col items-center">
         {props.imageUrls.map((src, i) => (
           <img
@@ -278,6 +282,7 @@ function PagedReader({
             {chapterTitle && (
               <p className="text-sm text-reader-muted">{chapterTitle}</p>
             )}
+            <AdSlot placement="chapter-start" />
             <Button size="lg" onClick={onNext} aria-label="Start reading">
               Start reading <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </Button>
