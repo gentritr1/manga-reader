@@ -249,7 +249,16 @@ export function AdsterraAdSlot({
 
   if (status !== "authenticated" || !currentAccess?.show) return null;
 
-  if (!adConfig) return null;
+  const socialScript = currentAccess.socialScriptUrl ? (
+    <Script
+      id={`adsterra-${placement}`}
+      src={currentAccess.socialScriptUrl}
+      strategy="afterInteractive"
+      data-cfasync="false"
+    />
+  ) : null;
+
+  if (!adConfig) return socialScript;
 
   const slotStyle =
     adConfig.type === "iframe"
@@ -267,6 +276,7 @@ export function AdsterraAdSlot({
       style={slotStyle}
     >
       <span className="sr-only">Advertisement</span>
+      {socialScript}
       {adConfig.type === "native" ? (
         <div ref={nativeContainerRef} />
       ) : (
