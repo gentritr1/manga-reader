@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-type AdPlacement = "banner" | "feed" | "rectangle" | "reader";
+type AdPlacement = "banner" | "feed" | "rectangle" | "reader" | "social";
 
 type NativeAdConfig = {
   type: "native";
@@ -25,7 +25,13 @@ const noStore = {
   headers: { "Cache-Control": "private, no-store" },
 };
 
-const placements = new Set<AdPlacement>(["banner", "feed", "rectangle", "reader"]);
+const placements = new Set<AdPlacement>([
+  "banner",
+  "feed",
+  "rectangle",
+  "reader",
+  "social",
+]);
 
 function normalizeScriptUrl(value: string | undefined) {
   const trimmed = value?.trim();
@@ -103,6 +109,8 @@ function placementConfig(placement: AdPlacement): NativeAdConfig | IframeAdConfi
         width: 300,
         height: 250,
       });
+    case "social":
+      return null;
   }
 }
 

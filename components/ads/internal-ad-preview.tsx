@@ -50,32 +50,67 @@ type AtOptions = {
 };
 
 const SOCIAL_SCRIPT_ID = "adsterra-social-script";
-let socialScriptMounts = 0;
 
-function SocialAdScript({ src }: { src: string }) {
+function injectScript({
+  id,
+  src,
+  parent,
+  async = false,
+}: {
+  id: string;
+  src: string;
+  parent: HTMLElement;
+  async?: boolean;
+}) {
+  document.getElementById(id)?.remove();
+
+  const script = document.createElement("script");
+  script.id = id;
+  script.async = async;
+  script.setAttribute("data-cfasync", "false");
+  script.src = src;
+  parent.appendChild(script);
+
+  return script;
+}
+
+export function AdsterraSocialAd() {
+  const { data: session, status } = useSession();
+  const userId = session?.user?.id;
+
   useEffect(() => {
-    socialScriptMounts += 1;
+    document.getElementById(SOCIAL_SCRIPT_ID)?.remove();
 
-    let script = document.getElementById(SOCIAL_SCRIPT_ID) as HTMLScriptElement | null;
+    if (status !== "authenticated" || !userId) return;
 
-    if (!script || script.src !== src) {
-      script?.remove();
-      script = document.createElement("script");
-      script.id = SOCIAL_SCRIPT_ID;
-      script.src = src;
-      script.async = true;
-      script.setAttribute("data-cfasync", "false");
-      document.body.appendChild(script);
-    }
+    let active = true;
+
+    fetch("/api/internal-ad-preview?placement=social", { cache: "no-store" })
+      .then((response) =>
+        response.ok
+          ? response.json()
+          : ({
+              show: false,
+              socialScriptUrl: null,
+              adConfig: null,
+            } satisfies AdAccessResponse),
+      )
+      .then((data: AdAccessResponse) => {
+        if (!active || !data.show || !data.socialScriptUrl) return;
+
+        injectScript({
+          id: SOCIAL_SCRIPT_ID,
+          src: data.socialScriptUrl,
+          parent: document.body,
+        });
+      })
+      .catch(() => {});
 
     return () => {
-      socialScriptMounts = Math.max(0, socialScriptMounts - 1);
-
-      if (socialScriptMounts === 0) {
-        document.getElementById(SOCIAL_SCRIPT_ID)?.remove();
-      }
+      active = false;
+      document.getElementById(SOCIAL_SCRIPT_ID)?.remove();
     };
-  }, [src]);
+  }, [status, userId]);
 
   return null;
 }
@@ -130,7 +165,6 @@ export function AdsterraAdSlot({
       ? adAccess.response
       : null;
   const adConfig = currentAccess?.show ? currentAccess.adConfig : null;
-  const socialScriptUrl = currentAccess?.show ? currentAccess.socialScriptUrl : null;
 
   useEffect(() => {
     if (!adConfig || adConfig.type !== "iframe") return;
@@ -150,12 +184,11 @@ export function AdsterraAdSlot({
 
     (window as Window & { atOptions?: AtOptions }).atOptions = atOptions;
 
-    const script = document.createElement("script");
-    script.id = `adsterra-iframe-${placement}`;
-    script.src = adConfig.src;
-    script.async = false;
-    script.setAttribute("data-cfasync", "false");
-    container.appendChild(script);
+    const script = injectScript({
+      id: `adsterra-iframe-${placement}`,
+      src: adConfig.src,
+      parent: container,
+    });
 
     return () => {
       script.remove();
@@ -174,13 +207,13 @@ export function AdsterraAdSlot({
     const target = document.createElement("div");
     target.id = adConfig.containerId;
 
-    const script = document.createElement("script");
-    script.id = `adsterra-native-${placement}`;
-    script.src = adConfig.src;
-    script.async = true;
-    script.setAttribute("data-cfasync", "false");
-
-    container.append(target, script);
+    container.appendChild(target);
+    const script = injectScript({
+      id: `adsterra-native-${placement}`,
+      src: adConfig.src,
+      parent: container,
+      async: true,
+    });
 
     return () => {
       script.remove();
@@ -190,9 +223,7 @@ export function AdsterraAdSlot({
 
   if (status !== "authenticated" || !currentAccess?.show) return null;
 
-  const socialScript = socialScriptUrl ? <SocialAdScript src={socialScriptUrl} /> : null;
-
-  if (!adConfig) return socialScript;
+  if (!adConfig) return null;
 
   const slotStyle =
     adConfig.type === "iframe"
@@ -210,7 +241,6 @@ export function AdsterraAdSlot({
       style={slotStyle}
     >
       <span className="sr-only">Advertisement</span>
-      {socialScript}
       {adConfig.type === "native" ? (
         <div ref={nativeContainerRef} />
       ) : (
