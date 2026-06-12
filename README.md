@@ -74,8 +74,9 @@ AdSense is unavailable in some regions, so this uses **Adsterra** behind a reusa
 `<AdSlot>` component. To enable:
 
 1. Create an Adsterra publisher account and add your site.
-2. Create **Native Banner** ad units for the placements you want.
-3. Paste each unit's `invoke.js` src and container id into `.env.local`
+2. Create ad units for the placements you want. The bundled slots support a native banner
+   at chapter start, a 300x250 iframe at chapter end, and a 728x90 iframe banner.
+3. Paste each unit's native `invoke.js` src/container id or iframe key into `.env.local`
    (`NEXT_PUBLIC_ADSTERRA_*`), and set `NEXT_PUBLIC_ADS_ENABLED="true"`.
 
 Ads render on the **chapter intro screen**, the **chapter end screen**, and **browse/home

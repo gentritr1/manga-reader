@@ -7,21 +7,43 @@ const ADS_ENABLED = process.env.NEXT_PUBLIC_ADS_ENABLED === "true";
 
 export type AdPlacement = "chapter-start" | "chapter-end" | "banner";
 
-// Adsterra "Native Banner" keys, configured in .env.local.
-// Each placement needs the invoke.js src and the container element id Adsterra
-// gives you (looks like "container-xxxxxxxxxxxx").
-const CONFIG: Record<AdPlacement, { src?: string; containerId?: string }> = {
+type NativeAdConfig = {
+  type: "native";
+  src?: string;
+  containerId?: string;
+};
+
+type IframeAdConfig = {
+  type: "iframe";
+  key?: string;
+  width: number;
+  height: number;
+};
+
+type AdConfig = NativeAdConfig | IframeAdConfig;
+
+const iframeSrc = (key?: string) =>
+  key ? `https://www.highperformanceformat.com/${key}/invoke.js` : undefined;
+
+// Adsterra slots, configured in .env.local. Native ads need a script URL and
+// container id; iframe ads need the unit key and dimensions from Adsterra.
+const CONFIG: Record<AdPlacement, AdConfig> = {
   "chapter-start": {
-    src: process.env.NEXT_PUBLIC_ADSTERRA_START_SRC,
-    containerId: process.env.NEXT_PUBLIC_ADSTERRA_START_CONTAINER,
+    type: "native",
+    src: process.env.NEXT_PUBLIC_ADSTERRA_CHAPTER_START_SRC,
+    containerId: process.env.NEXT_PUBLIC_ADSTERRA_CHAPTER_START_CONTAINER,
   },
   "chapter-end": {
-    src: process.env.NEXT_PUBLIC_ADSTERRA_END_SRC,
-    containerId: process.env.NEXT_PUBLIC_ADSTERRA_END_CONTAINER,
+    type: "iframe",
+    key: process.env.NEXT_PUBLIC_ADSTERRA_CHAPTER_END_KEY,
+    width: 300,
+    height: 250,
   },
   banner: {
-    src: process.env.NEXT_PUBLIC_ADSTERRA_BANNER_SRC,
-    containerId: process.env.NEXT_PUBLIC_ADSTERRA_BANNER_CONTAINER,
+    type: "iframe",
+    key: process.env.NEXT_PUBLIC_ADSTERRA_BANNER_KEY,
+    width: 728,
+    height: 90,
   },
 };
 
@@ -38,8 +60,12 @@ export function AdSlot({
   placement: AdPlacement;
   className?: string;
 }) {
-  const { src, containerId } = CONFIG[placement];
-  const configured = ADS_ENABLED && src && containerId;
+  const config = CONFIG[placement];
+  const src = config.type === "native" ? config.src : iframeSrc(config.key);
+  const configured =
+    ADS_ENABLED &&
+    src &&
+    (config.type === "iframe" || (config.type === "native" && config.containerId));
 
   // Show a labelled placeholder in development so slots are visible during
   // layout work. In production an unconfigured/disabled slot renders nothing.
@@ -63,12 +89,29 @@ export function AdSlot({
         {LABELS[placement]}
       </p>
       <div className="flex justify-center">
-        <div id={containerId} />
+        {config.type === "native" ? <div id={config.containerId} /> : null}
       </div>
+      {config.type === "iframe" && (
+        <Script
+          id={`adsterra-options-${placement}`}
+          strategy="afterInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.atOptions = {
+                key: "${config.key}",
+                format: "iframe",
+                height: ${config.height},
+                width: ${config.width},
+                params: {}
+              };
+            `,
+          }}
+        />
+      )}
       <Script
         id={`adsterra-${placement}`}
         src={src}
-        strategy="lazyOnload"
+        strategy={config.type === "iframe" ? "afterInteractive" : "lazyOnload"}
         async
         data-cfasync="false"
       />
