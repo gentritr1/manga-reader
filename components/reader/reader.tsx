@@ -16,6 +16,7 @@ import { AdSlot } from "@/components/ads/ad-slot";
 import { cn } from "@/lib/utils";
 
 type Mode = "vertical" | "paged";
+const MAX_IMAGE_RETRIES = 3;
 
 interface Props {
   chapterId: string;
@@ -230,12 +231,11 @@ function VerticalReader(props: Props) {
 
       <div className="flex flex-col items-center">
         {props.imageUrls.map((src, i) => (
-          <img
-            key={i}
+          <ReaderPageImage
+            key={src}
             src={src}
             alt={`Page ${i + 1}`}
-            loading={i < 2 ? "eager" : "lazy"}
-            className="w-full"
+            eager={i < 2}
           />
         ))}
       </div>
@@ -246,6 +246,61 @@ function VerticalReader(props: Props) {
         <ChapterNav prevId={props.prevId} nextId={props.nextId} variant="dark" />
         <AdSlot placement="chapter-end" className="mx-auto max-w-xl" />
       </div>
+    </div>
+  );
+}
+
+function ReaderPageImage({
+  src,
+  alt,
+  eager,
+}: {
+  src: string;
+  alt: string;
+  eager: boolean;
+}) {
+  const [failed, setFailed] = useState(false);
+  const [retry, setRetry] = useState(0);
+  const canRetry = retry < MAX_IMAGE_RETRIES;
+
+  const retryNow = () => {
+    if (!canRetry) return;
+    setFailed(false);
+    setRetry((current) => Math.min(current + 1, MAX_IMAGE_RETRIES));
+  };
+  const imageSrc =
+    retry > 0 ? `${src}${src.includes("?") ? "&" : "?"}readerRetry=${retry}` : src;
+
+  return (
+    <div className="relative w-full overflow-hidden bg-reader-canvas">
+      <img
+        key={retry}
+        src={imageSrc}
+        alt={alt}
+        width={1440}
+        height={2048}
+        loading={eager ? "eager" : "lazy"}
+        decoding="async"
+        referrerPolicy="no-referrer"
+        onLoad={() => setFailed(false)}
+        onError={() => setFailed(true)}
+        className="h-auto w-full"
+      />
+      {failed && (
+        <div className="absolute inset-0 grid place-items-center bg-reader-canvas text-xs text-reader-muted">
+          {canRetry ? (
+            <button
+              type="button"
+              onClick={retryNow}
+              className="rounded-lg border border-reader-line px-3 py-2 transition hover:bg-reader-control-hover focus-visible:ring-reader-focus"
+            >
+              Retry page
+            </button>
+          ) : (
+            <span>Page failed to load</span>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -297,6 +352,10 @@ function PagedReader({
           <img
             src={imageUrls[slide - 1]}
             alt={`Page ${slide}`}
+            width={1440}
+            height={2048}
+            decoding="async"
+            referrerPolicy="no-referrer"
             className="max-h-[calc(100vh-7rem)] w-auto max-w-full object-contain"
           />
         )}

@@ -6,7 +6,7 @@ import {
   getChapters,
   getManga,
 } from "@/lib/mangadex-server";
-import { coverUrl, pageImageUrl } from "@/lib/mangadex";
+import { coverUrl } from "@/lib/mangadex";
 import { Reader } from "@/components/reader/reader";
 import { ExternalChapterNotice } from "@/components/reader/external-notice";
 
@@ -61,7 +61,7 @@ export default async function ReadPage({
     notFound();
   }
 
-  const imageUrls = pages.data.map((_, i) => pageImageUrl(pages, i, false));
+  const imageUrls = pages.data.map((_, i) => `/chapter-page/${chapterId}/${i + 1}`);
 
   return (
     <Reader
