@@ -4,7 +4,7 @@ import { ContinueReading } from "@/components/home/continue-reading";
 import { Section } from "@/components/manga/section";
 import { MangaGrid } from "@/components/manga/manga-grid";
 import { MangaCarousel } from "@/components/manga/manga-carousel";
-import { AdSlot } from "@/components/ads/ad-slot";
+import { InternalAdPreview } from "@/components/ads/internal-ad-preview";
 
 export const revalidate = 300;
 
@@ -52,7 +52,7 @@ export default async function HomePage() {
           </Section>
         )}
 
-        <AdSlot placement="banner" />
+        <InternalAdPreview placement="banner" />
 
         {latestRail.length > 0 && (
           <Section

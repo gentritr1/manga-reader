@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Search, SlidersHorizontal } from "lucide-react";
@@ -12,6 +12,7 @@ import {
 } from "@/lib/mangadex";
 import { MangaCard } from "@/components/manga/manga-card";
 import { MangaGridSkeleton } from "@/components/manga/manga-grid";
+import { InternalAdPreview } from "@/components/ads/internal-ad-preview";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -31,6 +32,10 @@ const STATUSES: { value: MangaStatus | ""; label: string }[] = [
   { value: "hiatus", label: "Hiatus" },
   { value: "cancelled", label: "Cancelled" },
 ];
+
+function shouldShowInternalPreview(index: number) {
+  return index === 12;
+}
 
 function useDebounced<T>(value: T, delay = 400) {
   const [debounced, setDebounced] = useState(value);
@@ -240,7 +245,15 @@ export function BrowseClient() {
           </p>
           <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
             {items.map((m, index) => (
-              <MangaCard key={m.id} manga={m} eager={index < 6} />
+              <Fragment key={m.id}>
+                {shouldShowInternalPreview(index) && (
+                  <InternalAdPreview
+                    placement="feed"
+                    className="col-span-2 my-3 sm:col-span-3 md:col-span-4 lg:col-span-5 xl:col-span-6"
+                  />
+                )}
+                <MangaCard manga={m} eager={index < 6} />
+              </Fragment>
             ))}
           </div>
           <div ref={sentinel} className="h-12" />

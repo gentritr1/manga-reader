@@ -1,12 +1,12 @@
 # Yomi — Manga Discovery Reader
 
-Yomi is a premium, mobile-first manga discovery and reading app built with
+Yomi is a polished, mobile-first manga discovery and reading app built with
 **Next.js 16** and powered by the open-source **MangaDex API**.
 
 The product direction is a "night shelf": cover-led discovery, fast paths into
 the next chapter, a calm library layer, and a UI that feels deliberate rather
 than aggregator-like. Accounts, synced favorites, reading history, Vercel
-Analytics, and optional Adsterra slots are included.
+Analytics, and optional donation support are included.
 
 ## Features
 
@@ -16,8 +16,8 @@ Analytics, and optional Adsterra slots are included.
   preloading.
 - Save favorites and resume reading with account-backed library/history.
 - Sign in with email/password or optional Google OAuth.
-- Keep the image reader ad-free while supporting optional intro/end/browse ad
-  placements.
+- Keep the MangaDex-backed experience ad-free, with optional donations that do
+  not change reader access or features.
 - Use a token-based dark/light design system with mobile-first homepage
   discovery.
 
@@ -57,7 +57,10 @@ npm run dev                       # http://localhost:3000
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — optional. When set, a "Continue with Google"
   button appears. Add `http://localhost:3000/api/auth/callback/google` as an authorized
   redirect URI in Google Cloud Console.
-- Ads — see below.
+- `NEXT_PUBLIC_SUPPORT_URL` — optional. When set, the support page links to your
+  donation provider.
+- `ADSTERRA_SCRIPT_URL` — optional. When set, the script is returned only for
+  authenticated accounts that are among the first two users in the database.
 
 ## Database
 
@@ -68,34 +71,24 @@ Supabase, Vercel Postgres, or another Postgres provider, then:
 2. Run `npx prisma db push` against that database.
 3. Add the same `DATABASE_URL` in Vercel project environment variables.
 
-## Ads (Adsterra)
+## Support and source policy
 
-AdSense is unavailable in some regions, so this uses **Adsterra** behind a reusable
-`<AdSlot>` component. To enable:
+The current app uses the MangaDex API. MangaDex's API acceptable usage policy says
+API-backed websites and apps **cannot run ads or paid services**. Confirm your
+content source and license terms before enabling any revenue ad script.
 
-1. Create an Adsterra publisher account and add your site.
-2. Create ad units for the placements you want. The bundled slots support a native banner
-   at chapter start, a 300x250 iframe at chapter end, and a 728x90 iframe banner.
-3. For native ads, set both the `invoke.js` src URL and container id. For iframe ads,
-   set only the iframe key. Enable rendering with `NEXT_PUBLIC_ADS_ENABLED="true"`.
+Optional donations are allowed as project support. Donations must not change
+access to manga, chapters, faster loading, search advantages, sync, offline
+reading, reader features, or any other access tied to MangaDex API-provided data.
+Configure `NEXT_PUBLIC_SUPPORT_URL` to point `/support` at a donation provider
+such as GitHub Sponsors, Ko-fi, Open Collective, or Patreon donation-only tiers.
 
-Placement mapping:
+If you want revenue ads or paid product plans, first switch to a content source
+or license model that explicitly allows monetization.
 
-```env
-NEXT_PUBLIC_ADSTERRA_CHAPTER_START_SRC=""       # native invoke.js URL
-NEXT_PUBLIC_ADSTERRA_CHAPTER_START_CONTAINER="" # native container id
-NEXT_PUBLIC_ADSTERRA_CHAPTER_END_KEY=""         # 300x250 iframe key
-NEXT_PUBLIC_ADSTERRA_BANNER_KEY=""              # 728x90 iframe key
-```
-
-Ads render on the **chapter intro screen**, the **chapter end screen**, and **browse/home
-banners** — never overlaid on the manga page images. This respects the MangaDex API Terms
-of Use, which prohibit monetizing their content directly. Want a different ad network?
-Swap the script logic inside `components/ads/ad-slot.tsx`; the rest of the app is agnostic.
-
-> **Note on the source API:** MangaDex is free and legal but its ToS forbids ads *on* their
-> content. If you ever need ads embedded directly in the page reader, you would have to
-> switch to a different (aggregator) source such as Consumet — not included here.
+`ADSTERRA_SCRIPT_URL` is intentionally gated to authenticated accounts that are
+among the first two users in the database. The API returns no script URL for
+logged-out users or any later account.
 
 ## How content works
 
@@ -113,7 +106,7 @@ All manga data comes from the MangaDex API.
 
 ```
 app/            routes (home, browse, manga/[id], read/[chapterId], login, signup, favorites, api/*)
-components/     ui primitives, layout chrome, manga cards, reader, ads, auth
+components/     ui primitives, layout chrome, manga cards, reader, auth
 lib/            mangadex client/server, auth, prisma, hooks
 prisma/         schema + dev.db
 BRAND.md        Yomi brand identity and voice
