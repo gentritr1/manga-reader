@@ -224,10 +224,6 @@ function ChapterNav({
 function VerticalReader(props: Props) {
   return (
     <div className="mx-auto max-w-3xl">
-      <div className="px-4 py-8">
-        <AdSlot placement="chapter-start" className="mx-auto max-w-xl" />
-      </div>
-
       <div className="flex flex-col items-center">
         {props.imageUrls.map((src, i) => (
           <img
@@ -241,7 +237,7 @@ function VerticalReader(props: Props) {
       </div>
 
       {/* End / chapter-end ad + nav */}
-      <div className="space-y-6 px-4 py-10">
+      <div className="space-y-8 px-4 py-10">
         <p className="text-center text-sm text-reader-muted">End of {props.chapterLabel}</p>
         <ChapterNav prevId={props.prevId} nextId={props.nextId} variant="dark" />
         <AdSlot placement="chapter-end" className="mx-auto max-w-xl" />
@@ -282,13 +278,12 @@ function PagedReader({
             {chapterTitle && (
               <p className="text-sm text-reader-muted">{chapterTitle}</p>
             )}
-            <AdSlot placement="chapter-start" />
             <Button size="lg" onClick={onNext} aria-label="Start reading">
               Start reading <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </Button>
           </div>
         ) : isEnd ? (
-          <div className="w-full max-w-xl space-y-6 text-center">
+          <div className="w-full max-w-xl space-y-8 text-center">
             <p className="text-sm text-reader-muted">End of {chapterLabel}</p>
             <ChapterNav prevId={prevId} nextId={nextId} variant="dark" />
             <AdSlot placement="chapter-end" />

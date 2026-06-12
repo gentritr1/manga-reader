@@ -1,24 +1,31 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Script from "next/script";
 import { cn } from "@/lib/utils";
 
 const ADS_ENABLED = process.env.NEXT_PUBLIC_ADS_ENABLED === "true";
+const MOBILE_BANNER_QUERY = "(max-width: 767px)";
 
-export type AdPlacement = "chapter-start" | "chapter-end" | "banner";
+export type AdPlacement = "chapter-end" | "banner" | "browse-feed";
 
 type NativeAdConfig = {
   type: "native";
   src?: string;
   containerId?: string;
+  minHeight: number;
+};
+
+type IframeUnit = {
+  key?: string;
+  width: number;
+  height: number;
 };
 
 type IframeAdConfig = {
   type: "iframe";
-  key?: string;
-  width: number;
-  height: number;
+  desktop: IframeUnit;
+  mobile?: IframeUnit;
 };
 
 type AdConfig = NativeAdConfig | IframeAdConfig;
@@ -37,30 +44,65 @@ const iframeSrc = (key?: string) =>
 // Adsterra slots, configured in .env.local. Native ads need a script URL and
 // container id; iframe ads need the unit key and dimensions from Adsterra.
 const CONFIG: Record<AdPlacement, AdConfig> = {
-  "chapter-start": {
-    type: "native",
-    src: process.env.NEXT_PUBLIC_ADSTERRA_CHAPTER_START_SRC,
-    containerId: process.env.NEXT_PUBLIC_ADSTERRA_CHAPTER_START_CONTAINER,
-  },
   "chapter-end": {
     type: "iframe",
-    key: process.env.NEXT_PUBLIC_ADSTERRA_CHAPTER_END_KEY,
-    width: 300,
-    height: 250,
+    desktop: {
+      key: process.env.NEXT_PUBLIC_ADSTERRA_CHAPTER_END_KEY,
+      width: 300,
+      height: 250,
+    },
   },
   banner: {
     type: "iframe",
-    key: process.env.NEXT_PUBLIC_ADSTERRA_BANNER_KEY,
-    width: 728,
-    height: 90,
+    desktop: {
+      key: process.env.NEXT_PUBLIC_ADSTERRA_BANNER_KEY,
+      width: 728,
+      height: 90,
+    },
+    mobile: {
+      key: process.env.NEXT_PUBLIC_ADSTERRA_MOBILE_BANNER_KEY,
+      width: 320,
+      height: 50,
+    },
+  },
+  "browse-feed": {
+    type: "native",
+    src:
+      process.env.NEXT_PUBLIC_ADSTERRA_BROWSE_FEED_SRC ??
+      process.env.NEXT_PUBLIC_ADSTERRA_CHAPTER_START_SRC,
+    containerId:
+      process.env.NEXT_PUBLIC_ADSTERRA_BROWSE_FEED_CONTAINER ??
+      process.env.NEXT_PUBLIC_ADSTERRA_CHAPTER_START_CONTAINER,
+    minHeight: 180,
   },
 };
 
 const LABELS: Record<AdPlacement, string> = {
-  "chapter-start": "Sponsored before you read",
-  "chapter-end": "Sponsored after the chapter",
+  "chapter-end": "Advertisement",
   banner: "Advertisement",
+  "browse-feed": "Advertisement",
 };
+
+function useIsMobileBanner() {
+  const [isMobile, setIsMobile] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const query = window.matchMedia(MOBILE_BANNER_QUERY);
+    const update = () => setIsMobile(query.matches);
+
+    update();
+    query.addEventListener("change", update);
+    return () => query.removeEventListener("change", update);
+  }, []);
+
+  return isMobile;
+}
+
+function selectIframeUnit(config: IframeAdConfig, isMobile: boolean | null) {
+  if (!config.mobile) return config.desktop;
+  if (isMobile === null) return undefined;
+  return isMobile ? config.mobile : config.desktop;
+}
 
 export function AdSlot({
   placement,
@@ -70,16 +112,28 @@ export function AdSlot({
   className?: string;
 }) {
   const config = CONFIG[placement];
-  const src = config.type === "native" ? config.src : iframeSrc(config.key);
+  const isMobile = useIsMobileBanner();
+  const iframeUnit =
+    config.type === "iframe" ? selectIframeUnit(config, isMobile) : undefined;
+  const src = config.type === "native" ? config.src : iframeSrc(iframeUnit?.key);
   const scriptId = `adsterra-${placement}`;
   const iframeContainerRef = useRef<HTMLDivElement>(null);
   const configured =
     ADS_ENABLED &&
     src &&
-    (config.type === "iframe" || (config.type === "native" && config.containerId));
+    (config.type === "iframe" ||
+      (config.type === "native" && config.containerId));
+  const placeholderSize =
+    config.type === "iframe"
+      ? iframeUnit ?? config.mobile ?? config.desktop
+      : { width: 728, height: config.minHeight };
+  const slotStyle = {
+    maxWidth: placeholderSize.width,
+    minHeight: placeholderSize.height,
+  };
 
   useEffect(() => {
-    if (!configured || config.type !== "iframe" || !src) return;
+    if (!configured || config.type !== "iframe" || !src || !iframeUnit) return;
 
     const container = iframeContainerRef.current;
     if (!container) return;
@@ -87,10 +141,10 @@ export function AdSlot({
     container.innerHTML = "";
 
     const atOptions: AtOptions = {
-      key: config.key ?? "",
+      key: iframeUnit.key ?? "",
       format: "iframe",
-      height: config.height,
-      width: config.width,
+      height: iframeUnit.height,
+      width: iframeUnit.width,
       params: {},
     };
 
@@ -107,32 +161,48 @@ export function AdSlot({
       script.remove();
       container.innerHTML = "";
     };
-  }, [config, configured, scriptId, src]);
+  }, [config, configured, iframeUnit, scriptId, src]);
 
   // Show a labelled placeholder in development so slots are visible during
   // layout work. In production an unconfigured/disabled slot renders nothing.
   if (!configured) {
     if (process.env.NODE_ENV !== "development") return null;
     return (
-      <div
+      <aside
+        aria-label={LABELS[placement]}
         className={cn(
-          "grid min-h-24 w-full place-items-center rounded-xl border border-dashed border-border bg-muted/40 text-xs text-muted-foreground",
+          "mx-auto grid w-full place-items-center rounded-xl border border-dashed border-border bg-muted/40 px-3 text-center text-xs text-muted-foreground",
           className,
         )}
+        style={slotStyle}
       >
         Ad slot · {placement} (configure Adsterra keys to enable)
-      </div>
+      </aside>
     );
   }
 
   return (
-    <div className={cn("w-full", className)}>
+    <aside
+      aria-label={LABELS[placement]}
+      className={cn("mx-auto w-full", className)}
+      style={slotStyle}
+    >
       <p className="mb-1 text-center text-xs uppercase tracking-wider text-muted-foreground">
         {LABELS[placement]}
       </p>
       <div className="flex justify-center">
         {config.type === "native" ? <div id={config.containerId} /> : null}
-        {config.type === "iframe" ? <div ref={iframeContainerRef} /> : null}
+        {config.type === "iframe" && iframeUnit ? (
+          <div
+            className="max-w-full overflow-hidden"
+            style={{
+              minHeight: iframeUnit.height,
+              width: iframeUnit.width,
+            }}
+          >
+            <div ref={iframeContainerRef} />
+          </div>
+        ) : null}
       </div>
       {config.type === "native" && (
         <Script
@@ -143,6 +213,6 @@ export function AdSlot({
           data-cfasync="false"
         />
       )}
-    </div>
+    </aside>
   );
 }

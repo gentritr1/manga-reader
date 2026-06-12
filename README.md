@@ -70,32 +70,44 @@ Supabase, Vercel Postgres, or another Postgres provider, then:
 
 ## Ads (Adsterra)
 
-AdSense is unavailable in some regions, so this uses **Adsterra** behind a reusable
-`<AdSlot>` component. To enable:
+The current app uses the MangaDex API. MangaDex's API acceptable usage policy says
+API-backed websites and apps **cannot run ads or paid services**. Keep
+`NEXT_PUBLIC_ADS_ENABLED="false"` while MangaDex is the content source unless you
+have explicit permission from MangaDex or switch to a source where revenue ads are
+allowed.
+
+For a cleared source, the app uses **Adsterra** behind a reusable `<AdSlot>`
+component. To enable:
 
 1. Create an Adsterra publisher account and add your site.
-2. Create ad units for the placements you want. The bundled slots support a native banner
-   at chapter start, a 300x250 iframe at chapter end, and a 728x90 iframe banner.
+2. Create ad units for the placements you want. The bundled slots support a native
+   browse in-feed unit, a 300x250 iframe at chapter end, a 728x90 desktop banner,
+   and an optional 320x50 mobile banner.
 3. For native ads, set both the `invoke.js` src URL and container id. For iframe ads,
    set only the iframe key. Enable rendering with `NEXT_PUBLIC_ADS_ENABLED="true"`.
 
 Placement mapping:
 
 ```env
-NEXT_PUBLIC_ADSTERRA_CHAPTER_START_SRC=""       # native invoke.js URL
-NEXT_PUBLIC_ADSTERRA_CHAPTER_START_CONTAINER="" # native container id
-NEXT_PUBLIC_ADSTERRA_CHAPTER_END_KEY=""         # 300x250 iframe key
-NEXT_PUBLIC_ADSTERRA_BANNER_KEY=""              # 728x90 iframe key
+NEXT_PUBLIC_ADSTERRA_BROWSE_FEED_SRC=""        # native invoke.js URL
+NEXT_PUBLIC_ADSTERRA_BROWSE_FEED_CONTAINER=""  # native container id
+NEXT_PUBLIC_ADSTERRA_CHAPTER_END_KEY=""        # 300x250 iframe key
+NEXT_PUBLIC_ADSTERRA_BANNER_KEY=""             # 728x90 desktop iframe key
+NEXT_PUBLIC_ADSTERRA_MOBILE_BANNER_KEY=""      # 320x50 mobile iframe key
 ```
 
-Ads render on the **chapter intro screen**, the **chapter end screen**, and **browse/home
-banners** — never overlaid on the manga page images. This respects the MangaDex API Terms
-of Use, which prohibit monetizing their content directly. Want a different ad network?
-Swap the script logic inside `components/ads/ad-slot.tsx`; the rest of the app is agnostic.
+When ads are legally allowed, they render on **browse in-feed discovery**, the
+**chapter end screen**, and **home/detail banners** — never overlaid on manga page
+images and never before the first reader page. Want a different ad network? Swap
+the script logic inside `components/ads/ad-slot.tsx`; the rest of the app is
+agnostic.
 
-> **Note on the source API:** MangaDex is free and legal but its ToS forbids ads *on* their
-> content. If you ever need ads embedded directly in the page reader, you would have to
-> switch to a different (aggregator) source such as Consumet — not included here.
+For backwards compatibility, the old `NEXT_PUBLIC_ADSTERRA_CHAPTER_START_SRC` and
+`NEXT_PUBLIC_ADSTERRA_CHAPTER_START_CONTAINER` values are still accepted as fallbacks
+for the browse in-feed native unit.
+
+> **Source policy note:** Do not enable revenue ads on the MangaDex-backed app.
+> If you want ad revenue, first switch to a source/license model that permits it.
 
 ## How content works
 

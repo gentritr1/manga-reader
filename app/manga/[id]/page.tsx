@@ -11,7 +11,6 @@ import { Button } from "@/components/ui/button";
 import { FavoriteButton } from "@/components/manga/favorite-button";
 import { Synopsis } from "@/components/manga/synopsis";
 import { ChapterList } from "@/components/manga/chapter-list";
-import { AdSlot } from "@/components/ads/ad-slot";
 
 export const revalidate = 900;
 
@@ -154,10 +153,6 @@ export default async function MangaDetailPage({
 
             <Synopsis text={manga.description} />
           </div>
-        </div>
-
-        <div className="my-8">
-          <AdSlot placement="banner" />
         </div>
 
         <div className="space-y-4">
