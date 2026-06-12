@@ -61,6 +61,13 @@ npm run dev                       # http://localhost:3000
   donation provider.
 - `ADSTERRA_SCRIPT_URL` — optional. When set, the script is returned only for
   authenticated accounts that are among the first two users in the database.
+- `NEXT_PUBLIC_ADS_ENABLED` — set to `true` to enable the configured in-page
+  Adsterra placements for those first two accounts.
+- `NEXT_PUBLIC_ADSTERRA_BANNER_KEY` — optional 728x90 home/detail banner key.
+- `NEXT_PUBLIC_ADSTERRA_CHAPTER_END_KEY` — optional 300x250 reader-end key.
+- `NEXT_PUBLIC_ADSTERRA_CHAPTER_START_SRC` /
+  `NEXT_PUBLIC_ADSTERRA_CHAPTER_START_CONTAINER` — optional native in-feed slot
+  used on browse.
 
 ## Database
 
@@ -86,9 +93,10 @@ such as GitHub Sponsors, Ko-fi, Open Collective, or Patreon donation-only tiers.
 If you want revenue ads or paid product plans, first switch to a content source
 or license model that explicitly allows monetization.
 
-`ADSTERRA_SCRIPT_URL` is intentionally gated to authenticated accounts that are
-among the first two users in the database. The API returns no script URL for
-logged-out users or any later account.
+`ADSTERRA_SCRIPT_URL` and the configured in-page Adsterra placements are
+intentionally gated to authenticated accounts that are among the first two users
+in the database. The API returns no ad config for logged-out users or any later
+account.
 
 ## How content works
 

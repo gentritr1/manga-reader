@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Compass, Heart } from "lucide-react";
+import { BookOpen, Compass, Heart, Gift } from "lucide-react";
 import { YomiMark } from "@/components/brand/yomi-mark";
 import { SearchBar } from "./search-bar";
 import { ThemeToggle } from "./theme-toggle";
@@ -13,6 +13,7 @@ const links = [
   { href: "/", label: "Home", icon: BookOpen },
   { href: "/browse", label: "Browse", icon: Compass },
   { href: "/favorites", label: "Library", icon: Heart },
+  { href: "/support", label: "Support", icon: Gift },
 ];
 
 export function Navbar() {
