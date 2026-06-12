@@ -12,7 +12,7 @@ import {
 } from "@/lib/mangadex";
 import { MangaCard } from "@/components/manga/manga-card";
 import { MangaGridSkeleton } from "@/components/manga/manga-grid";
-import { AdSlot } from "@/components/ads/ad-slot";
+import { InternalAdPreview } from "@/components/ads/internal-ad-preview";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -33,7 +33,7 @@ const STATUSES: { value: MangaStatus | ""; label: string }[] = [
   { value: "cancelled", label: "Cancelled" },
 ];
 
-function shouldShowBrowseAd(index: number) {
+function shouldShowInternalPreview(index: number) {
   return index === 12;
 }
 
@@ -246,9 +246,9 @@ export function BrowseClient() {
           <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
             {items.map((m, index) => (
               <Fragment key={m.id}>
-                {shouldShowBrowseAd(index) && (
-                  <AdSlot
-                    placement="browse-feed"
+                {shouldShowInternalPreview(index) && (
+                  <InternalAdPreview
+                    placement="feed"
                     className="col-span-2 my-3 sm:col-span-3 md:col-span-4 lg:col-span-5 xl:col-span-6"
                   />
                 )}

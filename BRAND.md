@@ -152,7 +152,7 @@ YouTube, Reddit, Discord, and friends. Secondary audience is power readers with
 large libraries.
 
 Avoid:
-Fandom wiki clutter, low-quality manga aggregator aesthetics, ad-first layouts,
+Fandom wiki clutter, low-quality manga aggregator aesthetics, monetization-first layouts,
 generic purple SaaS dashboards, childish anime clichés, and vague AI-ish copy.
 
 Deliver:

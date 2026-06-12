@@ -2,9 +2,9 @@ import { Fragment } from "react";
 import Link from "next/link";
 import { ChevronRight, ExternalLink } from "lucide-react";
 import { isReadable, type SimpleChapter } from "@/lib/mangadex";
-import { AdSlot } from "@/components/ads/ad-slot";
+import { InternalAdPreview } from "@/components/ads/internal-ad-preview";
 
-const DETAIL_AD_AFTER_CHAPTERS = 8;
+const DETAIL_PREVIEW_AFTER_CHAPTERS = 8;
 
 function chapterLabel(c: SimpleChapter) {
   const parts: string[] = [];
@@ -79,10 +79,10 @@ export function ChapterList({ chapters }: { chapters: SimpleChapter[] }) {
         return (
           <Fragment key={c.id}>
             {row}
-            {index === DETAIL_AD_AFTER_CHAPTERS - 1 &&
-              chapters.length > DETAIL_AD_AFTER_CHAPTERS && (
+            {index === DETAIL_PREVIEW_AFTER_CHAPTERS - 1 &&
+              chapters.length > DETAIL_PREVIEW_AFTER_CHAPTERS && (
                 <li className="bg-card px-4 py-5">
-                  <AdSlot placement="banner" />
+                  <InternalAdPreview placement="banner" />
                 </li>
               )}
           </Fragment>

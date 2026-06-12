@@ -27,6 +27,12 @@ export function Footer() {
             >
               Browse
             </Link>
+            <Link
+              href="/support"
+              className="inline-flex min-h-11 items-center hover:text-foreground"
+            >
+              Support
+            </Link>
             <a
               href="https://mangadex.org"
               target="_blank"

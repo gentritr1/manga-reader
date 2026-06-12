@@ -11,8 +11,8 @@ import {
   Columns2,
   Rows3,
 } from "lucide-react";
+import { InternalAdPreview } from "@/components/ads/internal-ad-preview";
 import { Button } from "@/components/ui/button";
-import { AdSlot } from "@/components/ads/ad-slot";
 import { cn } from "@/lib/utils";
 
 type Mode = "vertical" | "paged";
@@ -236,11 +236,10 @@ function VerticalReader(props: Props) {
         ))}
       </div>
 
-      {/* End / chapter-end ad + nav */}
       <div className="space-y-8 px-4 py-10">
         <p className="text-center text-sm text-reader-muted">End of {props.chapterLabel}</p>
         <ChapterNav prevId={props.prevId} nextId={props.nextId} variant="dark" />
-        <AdSlot placement="chapter-end" className="mx-auto max-w-xl" />
+        <InternalAdPreview placement="reader" />
       </div>
     </div>
   );
@@ -286,7 +285,7 @@ function PagedReader({
           <div className="w-full max-w-xl space-y-8 text-center">
             <p className="text-sm text-reader-muted">End of {chapterLabel}</p>
             <ChapterNav prevId={prevId} nextId={nextId} variant="dark" />
-            <AdSlot placement="chapter-end" />
+            <InternalAdPreview placement="reader" />
           </div>
         ) : (
           <img

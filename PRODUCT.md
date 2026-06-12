@@ -35,7 +35,7 @@ Yomi should feel like entering a living anime universe, not browsing a database.
 
 Avoid Fandom wiki clutter: banner overload, excessive navigation, weak hierarchy, and competing attention points.
 
-Avoid low-quality manga aggregator patterns: popups, ad-first layouts, inconsistent UI, poor typography, and anything that makes ads feel more important than stories.
+Avoid low-quality manga aggregator patterns: popups, monetization-first layouts, inconsistent UI, poor typography, and anything that makes support prompts feel more important than stories.
 
 Avoid Reddit-style density for the primary experience: information walls, undifferentiated lists, and layouts where every element competes at the same volume.
 
@@ -49,7 +49,7 @@ Keep power features quiet until needed. Library, history, bookmarks, and future 
 
 Respect the artwork. Covers and manga imagery are the product's strongest visual material; layout, color, and motion should frame them rather than fight them.
 
-Protect the reader's flow. Navigation, reader controls, ads, and account prompts should never make the user wonder where to click next.
+Protect the reader's flow. Navigation, reader controls, support prompts, and account prompts should never make the user wonder where to click next.
 
 ## Accessibility & Inclusion
 

@@ -14,7 +14,7 @@ The app no longer reads like a plain manga database. The remaining gap is deeper
 - Added Impeccable support for Codex and Claude through `.codex/skills/impeccable` and `.claude/skills/impeccable`.
 - Added `.impeccable/live/config.json` for live UI workflows against the Next App Router layout.
 - Rebuilt the homepage around a stronger spotlight hero with cover art, secondary cover collage, richer metadata, and clearer CTAs.
-- Reworked the homepage content flow into discovery-first sections: continue reading, reader heat, ads, and fresh chapter drops.
+- Reworked the homepage content flow into discovery-first sections: continue reading, reader heat, and fresh chapter drops.
 - Replaced generic color values with OKLCH design tokens for light and dark mode, including warm, cool, spotlight, and status roles.
 - Improved mobile navigation with larger targets, better wrapping, icon support, and a mobile-safe search layout.
 - Made continue-reading useful even when empty by showing a return-shelf onboarding module instead of disappearing.
@@ -22,7 +22,7 @@ The app no longer reads like a plain manga database. The remaining gap is deeper
 - Improved carousels with keyboard/ARIA affordances, reduced-motion aware scrolling, and mobile edge hints.
 - Improved browse filters with labels, `aria-pressed` genre chips, query cancellation, route heading, and larger form controls.
 - Improved reader accessibility with a route-level heading, labeled controls, mode pressed states, safer click zones, and no global footer inside reader routes.
-- Moved reader ads away from the first reading moment so the chapter starts cleaner.
+- Kept the reader flow clear of monetization prompts so chapters start cleanly.
 - Updated Next config for Turbopack root handling and LAN dev origins.
 - Removed deprecated Next Image `priority` usage and aligned loading behavior with Next 16 guidance.
 
@@ -82,8 +82,8 @@ The app no longer reads like a plain manga database. The remaining gap is deeper
 4. Review external URL handling.
    Licensed chapters link out to official sources. Keep `rel="noopener noreferrer"` and validate external URLs before rendering.
 
-5. Check ad integration risk.
-   Ad scripts should stay lazy-loaded, isolated by placement, and easy to disable. Avoid placing ads before the first reader page.
+5. Keep support and monetization boundaries clear.
+   Support prompts should remain opt-in and low-pressure. Do not add revenue ads or paid MangaDex-backed feature gates.
 
 ## Feature Next Steps
 
