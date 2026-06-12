@@ -16,6 +16,7 @@ import { AdSlot } from "@/components/ads/ad-slot";
 import { cn } from "@/lib/utils";
 
 type Mode = "vertical" | "paged";
+const MAX_IMAGE_RETRIES = 3;
 
 interface Props {
   chapterId: string;
@@ -260,10 +261,12 @@ function ReaderPageImage({
 }) {
   const [failed, setFailed] = useState(false);
   const [retry, setRetry] = useState(0);
+  const canRetry = retry < MAX_IMAGE_RETRIES;
 
   const retryNow = () => {
+    if (!canRetry) return;
     setFailed(false);
-    setRetry((current) => current + 1);
+    setRetry((current) => Math.min(current + 1, MAX_IMAGE_RETRIES));
   };
   const imageSrc =
     retry > 0 ? `${src}${src.includes("?") ? "&" : "?"}readerRetry=${retry}` : src;
@@ -285,13 +288,17 @@ function ReaderPageImage({
       />
       {failed && (
         <div className="absolute inset-0 grid place-items-center bg-reader-canvas text-xs text-reader-muted">
-          <button
-            type="button"
-            onClick={retryNow}
-            className="rounded-lg border border-reader-line px-3 py-2 transition hover:bg-reader-control-hover focus-visible:ring-reader-focus"
-          >
-            Retry page
-          </button>
+          {canRetry ? (
+            <button
+              type="button"
+              onClick={retryNow}
+              className="rounded-lg border border-reader-line px-3 py-2 transition hover:bg-reader-control-hover focus-visible:ring-reader-focus"
+            >
+              Retry page
+            </button>
+          ) : (
+            <span>Page failed to load</span>
+          )}
         </div>
       )}
     </div>

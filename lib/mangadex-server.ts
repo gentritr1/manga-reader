@@ -109,16 +109,32 @@ export async function getChapterPages(
 ): Promise<ChapterPages | null> {
   // At-home server URLs are short-lived; cache briefly.
   const json = await mdFetch<{
-    baseUrl?: string;
-    chapter?: { hash: string; data: string[]; dataSaver: string[] };
+    baseUrl?: unknown;
+    chapter?: { hash?: unknown; data?: unknown; dataSaver?: unknown };
   }>(`/at-home/server/${chapterId}`, 60);
-  if (!json?.baseUrl || !json.chapter) return null;
+  const chapter = json?.chapter;
+  const data = toStringArray(chapter?.data);
+
+  if (
+    typeof json?.baseUrl !== "string" ||
+    typeof chapter?.hash !== "string" ||
+    data.length === 0
+  ) {
+    return null;
+  }
+
   return {
     baseUrl: json.baseUrl,
-    hash: json.chapter.hash,
-    data: json.chapter.data,
-    dataSaver: json.chapter.dataSaver,
+    hash: chapter.hash,
+    data,
+    dataSaver: toStringArray(chapter.dataSaver),
   };
+}
+
+function toStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
 }
 
 /**

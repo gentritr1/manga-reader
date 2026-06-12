@@ -39,6 +39,7 @@ export async function GET(
 
   try {
     const upstream = await fetch(target, {
+      // Avoid storing large MangaDex image bodies and range variants in Next's data cache.
       cache: "no-store",
       headers: {
         "User-Agent": UA,
