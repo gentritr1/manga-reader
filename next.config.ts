@@ -17,12 +17,21 @@ const nextConfig: NextConfig = {
     root: process.cwd(),
   },
   images: {
+    deviceSizes: [360, 414, 640, 768, 1024, 1280, 1536],
+    imageSizes: [40, 64, 96, 128, 160, 256, 384],
+    formats: ["image/webp"],
+    minimumCacheTTL: 86400,
+    qualities: [75],
+    maximumRedirects: 1,
     remotePatterns: [
-      { protocol: "https", hostname: "uploads.mangadex.org" },
-      { protocol: "https", hostname: "**.mangadex.network" },
-      { protocol: "https", hostname: "mangadex.org" },
+      {
+        protocol: "https",
+        hostname: "uploads.mangadex.org",
+        pathname: "/covers/**",
+        search: "",
+      },
       // Google profile images for OAuth users
-      { protocol: "https", hostname: "lh3.googleusercontent.com" },
+      { protocol: "https", hostname: "lh3.googleusercontent.com", pathname: "/**" },
     ],
   },
 };

@@ -8,7 +8,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { searchMangaClient } from "@/lib/mangadex-client";
+import {
+  MANGA_SEARCH_GC_TIME_MS,
+  MANGA_SEARCH_STALE_TIME_MS,
+  searchMangaClient,
+} from "@/lib/mangadex-client";
 import { coverUrl } from "@/lib/mangadex";
 
 function useDebounced<T>(value: T, delay = 350) {
@@ -51,6 +55,8 @@ export function SearchBar({
     queryKey: ["search-autocomplete", debouncedValue],
     queryFn: ({ signal }) => searchMangaClient({ title: debouncedValue, limit: 5 }, signal),
     enabled: debouncedValue.trim().length >= 2,
+    staleTime: MANGA_SEARCH_STALE_TIME_MS,
+    gcTime: MANGA_SEARCH_GC_TIME_MS,
   });
 
   return (

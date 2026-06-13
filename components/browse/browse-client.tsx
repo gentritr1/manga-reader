@@ -4,7 +4,11 @@ import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Search, SlidersHorizontal } from "lucide-react";
-import { searchMangaClient } from "@/lib/mangadex-client";
+import {
+  MANGA_SEARCH_GC_TIME_MS,
+  MANGA_SEARCH_STALE_TIME_MS,
+  searchMangaClient,
+} from "@/lib/mangadex-client";
 import {
   TAG_GROUPS,
   type MangaStatus,
@@ -18,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 24;
+const LATEST_BROWSE_STALE_TIME_MS = 2 * 60 * 1000;
 const SORTS: { value: SortOption; label: string }[] = [
   { value: "relevance", label: "Best match" },
   { value: "popular", label: "Most popular" },
@@ -65,6 +70,10 @@ export function BrowseClient() {
   const [showFilters, setShowFilters] = useState(false);
 
   const debouncedTitle = useDebounced(title);
+  const browseStaleTime =
+    sort === "latest" && !debouncedTitle && !status && genres.length === 0
+      ? LATEST_BROWSE_STALE_TIME_MS
+      : MANGA_SEARCH_STALE_TIME_MS;
 
   // Keep the URL in sync for shareable searches.
   useEffect(() => {
@@ -94,6 +103,8 @@ export function BrowseClient() {
         ? loaded
         : undefined;
     },
+    staleTime: browseStaleTime,
+    gcTime: MANGA_SEARCH_GC_TIME_MS,
   });
 
   const items = useMemo(

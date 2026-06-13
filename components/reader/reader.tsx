@@ -16,7 +16,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type Mode = "vertical" | "paged";
-const MAX_IMAGE_RETRIES = 3;
+const MAX_IMAGE_RETRIES = 2;
 
 interface Props {
   chapterId: string;
@@ -28,6 +28,18 @@ interface Props {
   coverUrl: string | null;
   prevId: string | null;
   nextId: string | null;
+}
+
+function allowsSpeculativeImagePreload(): boolean {
+  const connection = (
+    navigator as Navigator & {
+      connection?: { effectiveType?: string; saveData?: boolean };
+    }
+  ).connection;
+  return (
+    !connection?.saveData &&
+    !["slow-2g", "2g"].includes(connection?.effectiveType ?? "")
+  );
 }
 
 export function Reader(props: Props) {
@@ -106,14 +118,12 @@ function ReaderContent(props: Props) {
 
   // Preload neighbour image in paged mode.
   useEffect(() => {
-    if (mode !== "paged") return;
-    const i = slide; // current page index in 1..N maps to imageUrls[slide-1]
-    [i, i + 1].forEach((p) => {
-      if (p >= 1 && p <= total) {
-        const img = new Image();
-        img.src = imageUrls[p - 1];
-      }
-    });
+    if (mode !== "paged" || !allowsSpeculativeImagePreload()) return;
+    const nextPage = slide + 1;
+    if (nextPage >= 1 && nextPage <= total) {
+      const img = new Image();
+      img.src = imageUrls[nextPage - 1];
+    }
   }, [slide, mode, imageUrls, total]);
 
   const backHref = mangaId ? `/manga/${mangaId}` : "/";
