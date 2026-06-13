@@ -10,11 +10,9 @@ function mangaProxyTarget(path: string[], req: NextRequest): string | null {
 
   const searchParams = new URLSearchParams(req.nextUrl.searchParams);
   const rawLimit = Number(searchParams.get("limit") ?? "10");
-  if (!Number.isFinite(rawLimit) || rawLimit < 1) {
-    searchParams.set("limit", "10");
-  } else if (rawLimit > MAX_PROXY_LIMIT) {
-    searchParams.set("limit", String(MAX_PROXY_LIMIT));
-  }
+  const parsedLimit = Number.isFinite(rawLimit) ? Math.trunc(rawLimit) : 10;
+  const canonicalLimit = Math.min(Math.max(parsedLimit, 1), MAX_PROXY_LIMIT);
+  searchParams.set("limit", String(canonicalLimit));
   searchParams.sort();
 
   return `${MD_API}/manga?${searchParams.toString()}`;

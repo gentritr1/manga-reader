@@ -64,7 +64,11 @@ export async function GET(
 
     if (upstream.status === 304) {
       const headers = new Headers();
-      setSharedCacheHeaders(headers, CHAPTER_IMAGE_CACHE);
+      if (range) {
+        headers.set("Cache-Control", NO_STORE);
+      } else {
+        setSharedCacheHeaders(headers, CHAPTER_IMAGE_CACHE);
+      }
       for (const name of ["etag", "last-modified"]) {
         const value = upstream.headers.get(name);
         if (value) headers.set(name, value);
