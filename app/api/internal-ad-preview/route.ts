@@ -114,6 +114,15 @@ function placementConfig(placement: AdPlacement): NativeAdConfig | IframeAdConfi
   }
 }
 
+function allowedEmails() {
+  return new Set(
+    (process.env.ADSTERRA_ALLOWED_EMAILS ?? "")
+      .split(",")
+      .map((email) => email.trim().toLowerCase())
+      .filter(Boolean),
+  );
+}
+
 export async function GET(request: Request) {
   try {
     const placementParam = new URL(request.url).searchParams.get("placement");
@@ -125,6 +134,7 @@ export async function GET(request: Request) {
 
     const session = await auth();
     const userId = session?.user?.id;
+    const userEmail = session?.user?.email?.toLowerCase();
 
     if (!userId) {
       return NextResponse.json(
@@ -133,13 +143,17 @@ export async function GET(request: Request) {
       );
     }
 
+    const emailAllowlist = allowedEmails();
+    const emailAllowed =
+      emailAllowlist.size > 0 && userEmail ? emailAllowlist.has(userEmail) : false;
+
     const firstUsers = await prisma.user.findMany({
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       select: { id: true },
       take: 2,
     });
 
-    const show = firstUsers.some((user) => user.id === userId);
+    const show = emailAllowed || firstUsers.some((user) => user.id === userId);
 
     return NextResponse.json(
       {

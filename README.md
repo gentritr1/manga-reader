@@ -61,6 +61,10 @@ npm run dev                       # http://localhost:3000
   donation provider.
 - `ADSTERRA_SCRIPT_URL` — optional. When set, the script is returned only for
   authenticated accounts that are among the first two users in the database.
+- `ADSTERRA_ALLOWED_EMAILS` — optional comma-separated override for the exact
+  email accounts that should see gated ads, for example
+  `you@example.com,other@example.com`. When omitted, the app falls back to the
+  first two users in the database.
 - `NEXT_PUBLIC_ADS_ENABLED` — set to `true` to enable the configured in-page
   Adsterra placements for those first two accounts.
 - `NEXT_PUBLIC_ADSTERRA_BANNER_KEY` — optional 728x90 home/detail banner key.
