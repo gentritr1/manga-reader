@@ -6,11 +6,13 @@ import { BookOpen } from "lucide-react";
 import { getChapters, getManga } from "@/lib/mangadex-server";
 import { coverUrl, isReadable } from "@/lib/mangadex";
 import { SITE_URL } from "@/lib/site";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { buttonClassName } from "@/components/ui/button";
 import { FavoriteButton } from "@/components/manga/favorite-button";
 import { Synopsis } from "@/components/manga/synopsis";
 import { ChapterList } from "@/components/manga/chapter-list";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { AddToShelfButton } from "@/components/manga/add-to-shelf-button";
 
 export const revalidate = 900;
 
@@ -54,9 +56,18 @@ export default async function MangaDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const [manga, feed] = await Promise.all([
+  const session = await auth();
+
+  const [manga, feed, shelves] = await Promise.all([
     getManga(id),
     getChapters(id, { limit: 200, order: "desc" }),
+    session?.user?.id
+      ? prisma.shelf.findMany({
+          where: { userId: session.user.id },
+          include: { items: true },
+          orderBy: { createdAt: "asc" },
+        })
+      : Promise.resolve([]),
   ]);
 
   if (!manga) notFound();
@@ -86,13 +97,7 @@ export default async function MangaDetailPage({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      {/* Backdrop */}
-      <div className="absolute inset-x-0 top-0 h-72 overflow-hidden">
-        {cover && (
-          <Image src={cover} alt="" fill className="object-cover opacity-20 blur-2xl" />
-        )}
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-background" />
-      </div>
+
 
       <div className="relative mx-auto max-w-5xl px-4 py-8">
         <div className="flex flex-col gap-5 min-[480px]:flex-row min-[480px]:gap-6">
@@ -124,23 +129,44 @@ export default async function MangaDetailPage({
               )}
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              {manga.status && (
-                <Badge className="capitalize">{manga.status}</Badge>
-              )}
-              {manga.year && <Badge>{manga.year}</Badge>}
-              {manga.tags.slice(0, 5).map((t) => (
-                <Badge key={t}>{t}</Badge>
+            <div className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-muted-foreground">
+              {[
+                manga.status ? (
+                  <span key="status" className="capitalize text-foreground">
+                    {manga.status}
+                  </span>
+                ) : null,
+                manga.year ? <span key="year">{manga.year}</span> : null,
+                ...manga.tags.slice(0, 5),
+              ].filter(Boolean).map((item, i, arr) => (
+                <span key={i}>
+                  {item}
+                  {i < arr.length - 1 && (
+                    <span className="ml-1.5 opacity-50">&middot;</span>
+                  )}
+                </span>
               ))}
             </div>
 
             <div className="flex flex-wrap gap-2">
               {firstChapter && (
-                <Link href={`/read/${firstChapter.id}`} className="flex-1 min-[480px]:flex-none">
-                  <Button size="lg" className="w-full min-[480px]:w-auto">
-                    <BookOpen className="h-5 w-5" /> Start reading
-                  </Button>
+                <Link
+                  href={`/read/${firstChapter.id}`}
+                  className={buttonClassName({
+                    size: "lg",
+                    className: "flex-1 min-[480px]:flex-none",
+                  })}
+                >
+                  <BookOpen className="h-5 w-5" /> Start reading
                 </Link>
+              )}
+              {session?.user?.id && (
+                <AddToShelfButton
+                  shelves={shelves}
+                  mangaId={manga.id}
+                  title={manga.title}
+                  coverUrl={cover}
+                />
               )}
               <FavoriteButton
                 mangaId={manga.id}

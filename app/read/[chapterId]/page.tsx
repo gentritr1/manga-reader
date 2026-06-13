@@ -9,6 +9,8 @@ import {
 import { coverUrl } from "@/lib/mangadex";
 import { Reader } from "@/components/reader/reader";
 import { ExternalChapterNotice } from "@/components/reader/external-notice";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 
 export const revalidate = 60;
 
@@ -19,9 +21,10 @@ export default async function ReadPage({
 }) {
   const { chapterId } = await params;
 
-  const [info, mangaId] = await Promise.all([
+  const [info, mangaId, session] = await Promise.all([
     getChapterInfo(chapterId),
     getChapterMangaId(chapterId),
+    auth(),
   ]);
 
   if (!info) notFound();
@@ -61,6 +64,19 @@ export default async function ReadPage({
     notFound();
   }
 
+  let recap = null;
+  if (session?.user?.id && mangaId) {
+    const progress = await prisma.readingProgress.findUnique({
+      where: { userId_mangaId: { userId: session.user.id, mangaId } },
+    });
+    if (progress) {
+      const daysSince = (new Date().getTime() - progress.updatedAt.getTime()) / (1000 * 60 * 60 * 24);
+      if (daysSince > 7) {
+        recap = `Welcome back! It's been ${Math.floor(daysSince)} days since you last read ${progress.chapter ? `Chapter ${progress.chapter}` : "a chapter"}. Let's jump back into the action.`;
+      }
+    }
+  }
+
   const imageUrls = pages.data.map((_, i) => `/chapter-page/${chapterId}/${i + 1}`);
 
   return (
@@ -75,6 +91,7 @@ export default async function ReadPage({
       coverUrl={cover}
       prevId={prevId}
       nextId={nextId}
+      recap={recap}
     />
   );
 }

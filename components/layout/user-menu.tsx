@@ -2,7 +2,14 @@
 
 import { signOut, useSession } from "next-auth/react";
 import Link from "next/link";
-import { Heart, LogIn, LogOut, User as UserIcon } from "lucide-react";
+import {
+  BarChart3,
+  Heart,
+  LibraryBig,
+  LogIn,
+  LogOut,
+  User as UserIcon,
+} from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { buttonClassName } from "@/components/ui/button";
 
@@ -84,6 +91,20 @@ export function UserMenu() {
             className="flex min-h-11 items-center gap-2 px-4 text-sm hover:bg-muted focus-visible:bg-muted"
           >
             <UserIcon className="h-4 w-4" /> My Library
+          </Link>
+          <Link
+            href="/shelves"
+            onClick={() => setOpen(false)}
+            className="flex min-h-11 items-center gap-2 px-4 text-sm hover:bg-muted focus-visible:bg-muted"
+          >
+            <LibraryBig className="h-4 w-4" /> Shelves
+          </Link>
+          <Link
+            href="/analytics"
+            onClick={() => setOpen(false)}
+            className="flex min-h-11 items-center gap-2 px-4 text-sm hover:bg-muted focus-visible:bg-muted"
+          >
+            <BarChart3 className="h-4 w-4" /> Chapter Pulse
           </Link>
           <Link
             href="/support"

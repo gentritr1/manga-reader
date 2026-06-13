@@ -170,7 +170,7 @@ export function BrowseClient() {
         {showFilters && (
           <div
             id={filtersId}
-            className="space-y-4 rounded-xl border border-border bg-card p-4"
+            className="space-y-4 border-t border-border pt-4"
           >
             <div className="flex flex-wrap gap-3">
               <label className="flex items-center gap-2 text-sm">

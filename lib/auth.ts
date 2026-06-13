@@ -15,15 +15,20 @@ const providers: NextAuthConfig["providers"] = [
   Credentials({
     credentials: { email: {}, password: {} },
     authorize: async (creds) => {
-      const parsed = credentialsSchema.safeParse(creds);
-      if (!parsed.success) return null;
-      const user = await prisma.user.findUnique({
-        where: { email: parsed.data.email },
-      });
-      if (!user?.password) return null;
-      const ok = await bcrypt.compare(parsed.data.password, user.password);
-      if (!ok) return null;
-      return { id: user.id, email: user.email, name: user.name, image: user.image };
+      try {
+        const parsed = credentialsSchema.safeParse(creds);
+        if (!parsed.success) return null;
+        const user = await prisma.user.findUnique({
+          where: { email: parsed.data.email },
+        });
+        if (!user?.password) return null;
+        const ok = await bcrypt.compare(parsed.data.password, user.password);
+        if (!ok) return null;
+        return { id: user.id, email: user.email, name: user.name, image: user.image };
+      } catch (error) {
+        console.error("NextAuth Authorize Error:", error);
+        return null;
+      }
     },
   }),
 ];
