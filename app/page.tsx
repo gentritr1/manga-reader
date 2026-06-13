@@ -28,12 +28,11 @@ export default async function HomePage() {
   const featured = popular[0] ?? latest[0];
   const popularRail = popular.filter((manga) => manga.id !== featured?.id);
   const latestRail = latest.filter((manga) => manga.id !== featured?.id);
-  const supportingManga = [...popularRail, ...latestRail].slice(0, 4);
   const starterManga = [...popularRail, ...latestRail].slice(0, 3);
 
   return (
     <div className="w-full">
-      {featured && <Hero manga={featured} supportingManga={supportingManga} />}
+      {featured && <Hero manga={featured} />}
 
       <div className="mx-auto w-full max-w-7xl space-y-[var(--section-gap)] px-4 py-10 sm:py-12">
         <ContinueReading starterManga={starterManga} />

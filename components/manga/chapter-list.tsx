@@ -25,14 +25,14 @@ function Meta({ c }: { c: SimpleChapter }) {
 export function ChapterList({ chapters }: { chapters: SimpleChapter[] }) {
   if (chapters.length === 0) {
     return (
-      <p className="rounded-xl border border-border bg-card p-6 text-center text-sm text-muted-foreground">
+      <p className="py-6 text-center text-sm text-muted-foreground">
         No English chapters available for this title yet.
       </p>
     );
   }
 
   return (
-    <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
+    <ul className="divide-y divide-border">
       {chapters.map((c, index) => {
         const readable = isReadable(c);
         const title = (

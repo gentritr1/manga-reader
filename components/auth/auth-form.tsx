@@ -8,6 +8,30 @@ import { YomiMark } from "@/components/brand/yomi-mark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
+function authIntro(callbackUrl: string, isSignup: boolean) {
+  if (callbackUrl.startsWith("/shelves")) {
+    return isSignup
+      ? "Create an account to build shelves that follow your reading mood."
+      : "Log in to organize titles into shelves that stay with you.";
+  }
+
+  if (callbackUrl.startsWith("/analytics")) {
+    return isSignup
+      ? "Create an account to start building your Chapter Pulse."
+      : "Log in to see your Chapter Pulse and export your recap.";
+  }
+
+  if (callbackUrl.startsWith("/favorites")) {
+    return isSignup
+      ? "Create an account to save titles and return to them later."
+      : "Log in to access your library.";
+  }
+
+  return isSignup
+    ? "Build your library and sync your reading."
+    : "Log in to access your library.";
+}
+
 export function AuthForm({
   mode,
   googleEnabled,
@@ -67,9 +91,7 @@ export function AuthForm({
           {isSignup ? "Create your account" : "Welcome back"}
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          {isSignup
-            ? "Build your library and sync your reading."
-            : "Log in to access your library."}
+          {authIntro(callbackUrl, isSignup)}
         </p>
       </div>
 

@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BookOpen, Compass, Heart, Gift } from "lucide-react";
+import { BookOpen, Compass, Heart, LibraryBig, Gift } from "lucide-react";
 import { YomiMark } from "@/components/brand/yomi-mark";
-import { SearchBar } from "./search-bar";
+import { CommandPalette } from "./command-palette";
 import { ThemeToggle } from "./theme-toggle";
 import { UserMenu } from "./user-menu";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,7 @@ const links = [
   { href: "/", label: "Home", icon: BookOpen },
   { href: "/browse", label: "Browse", icon: Compass },
   { href: "/favorites", label: "Library", icon: Heart },
+  { href: "/shelves", label: "Shelves", icon: LibraryBig },
   { href: "/support", label: "Support", icon: Gift },
 ];
 
@@ -65,7 +66,7 @@ export function Navbar() {
             compactHome && "hidden sm:flex",
           )}
         >
-          <SearchBar className="w-full min-w-0 sm:max-w-xs" />
+          <CommandPalette className="w-full sm:w-[240px] md:w-[280px]" />
         </div>
 
         <div className="ml-auto flex shrink-0 items-center gap-1 sm:ml-0">
@@ -96,8 +97,8 @@ export function Navbar() {
       </div>
       <nav
         className={cn(
-          "mx-auto max-w-7xl gap-2 px-4 pb-3 md:hidden",
-          compactHome ? "hidden" : "flex",
+          "mx-auto grid max-w-7xl grid-cols-5 gap-1 px-4 pb-3 md:hidden",
+          compactHome && "hidden",
         )}
         aria-label="Primary"
       >
@@ -110,14 +111,14 @@ export function Navbar() {
               href={href}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg px-3 text-sm font-medium transition-colors",
+                "flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 rounded-lg px-1 text-[11px] font-medium transition-colors",
                 active
                   ? "bg-surface-muted text-content-primary"
                   : "text-content-secondary hover:bg-surface-muted/70 hover:text-content-primary",
               )}
             >
               <Icon className="h-4 w-4" />
-              {label}
+              <span className="max-w-full truncate">{label}</span>
             </Link>
           );
         })}

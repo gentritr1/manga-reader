@@ -1,12 +1,12 @@
-// Use Postgres for deployed environments. Set DATABASE_URL to your hosted
-// database connection string, such as Neon, Supabase, or Vercel Postgres.
+// This local branch uses SQLite. Before production deploy, switch the provider
+// to PostgreSQL and create a migration against the hosted DATABASE_URL.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -21,6 +21,8 @@ model User {
   sessions      Session[]
   favorites     Favorite[]
   history       ReadingProgress[]
+  readingSessions ReadingSession[]
+  shelves       Shelf[]
   createdAt     DateTime          @default(now())
 }
 
@@ -82,4 +84,45 @@ model ReadingProgress {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, mangaId])
+}
+
+model Shelf {
+  id        String      @id @default(cuid())
+  userId    String
+  name      String
+  colorVibe String      @default("indigo")
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     ShelfItem[]
+
+  @@unique([userId, name])
+  @@index([userId, updatedAt])
+}
+
+model ShelfItem {
+  id        String   @id @default(cuid())
+  shelfId   String
+  mangaId   String
+  title     String
+  coverUrl  String?
+  createdAt DateTime @default(now())
+  shelf     Shelf    @relation(fields: [shelfId], references: [id], onDelete: Cascade)
+
+  @@unique([shelfId, mangaId])
+}
+
+model ReadingSession {
+  id              String   @id @default(cuid())
+  userId          String
+  mangaId         String
+  mangaTitle      String
+  chapterId       String
+  pagesRead       Int
+  durationSeconds Int
+  createdAt       DateTime @default(now())
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, mangaId])
 }
