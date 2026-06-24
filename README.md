@@ -81,8 +81,11 @@ Supabase, Vercel Postgres, or another Postgres provider, then:
    (transaction-mode poolers break `prisma migrate`).
 3. If `DATABASE_URL` starts with `prisma://`, `lib/prisma.ts` automatically
    enables Prisma Accelerate's client extension.
-4. Run `npx prisma db push` (or `prisma migrate`) against that database.
-5. Add the same `DATABASE_URL` and `DIRECT_URL` in Vercel project environment
+4. Put both `DATABASE_URL` and `DIRECT_URL` in `.env` — the Prisma CLI reads
+   `.env`, not `.env.local`. If you keep them in `.env.local`, run Prisma with
+   dotenv instead, e.g. `dotenv -e .env.local -- npx prisma migrate dev`.
+5. Run `npx prisma db push` (or `prisma migrate`) against that database.
+6. Add the same `DATABASE_URL` and `DIRECT_URL` in Vercel project environment
    variables.
 
 ## Support and source policy

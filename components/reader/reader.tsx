@@ -389,6 +389,7 @@ function PagedReader({
           </div>
         ) : (
           <ReaderPageImage
+            key={imageUrls[slide - 1]}
             src={imageUrls[slide - 1]}
             fallbackSrc={chapterPageProxyUrl(chapterId, slide, useDataSaver)}
             alt={`Page ${slide}`}

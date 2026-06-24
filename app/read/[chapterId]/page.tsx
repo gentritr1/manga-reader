@@ -23,11 +23,14 @@ export default async function ReadPage({
   if (!info) notFound();
   const mangaId = info.mangaId;
 
-  const [manga, feed] = await Promise.all([
+  // External / licensed chapters have no in-app pages, so skip the pages fetch.
+  const needPages = !(info.externalUrl || info.pages === 0);
+  const [manga, feed, pages] = await Promise.all([
     mangaId ? getManga(mangaId) : Promise.resolve(null),
     mangaId
       ? getChapters(mangaId, { order: "asc", limit: 500 })
       : Promise.resolve({ chapters: [], total: 0 }),
+    needPages ? getChapterPages(chapterId) : Promise.resolve(null),
   ]);
 
   const idx = feed.chapters.findIndex((c) => c.id === chapterId);
@@ -39,9 +42,6 @@ export default async function ReadPage({
   const cover = manga ? coverUrl(manga.id, manga.coverFileName, 256) : null;
 
   // External / licensed chapters have no in-app pages, so show a notice instead.
-  const pages =
-    info.externalUrl || info.pages === 0 ? null : await getChapterPages(chapterId);
-
   if (!pages || pages.data.length === 0) {
     if (info.externalUrl) {
       return (
