@@ -1,7 +1,11 @@
+const DEFAULT_SITE_URL = "https://www.mangaorbit.net";
+
 // Public base URL of the deployed site. Set NEXT_PUBLIC_SITE_URL in production
-// (e.g. https://yomimanga.com) so canonical URLs, sitemap, and OG images resolve.
+// if the canonical domain differs from DEFAULT_SITE_URL.
 export const SITE_URL =
   process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
-  "http://localhost:3000";
+  DEFAULT_SITE_URL;
 
-export const SITE_NAME = "Yomi";
+export const SITE_NAME = "Manga Orbit";
+export const SITE_ALTERNATE_NAMES = ["MangaOrbit", "mangaorbit"];
+export const SITE_HOST = new URL(SITE_URL).host;

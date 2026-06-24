@@ -1,8 +1,8 @@
-import Image from "next/image";
 import Link from "next/link";
 import { coverUrl, type SimpleManga } from "@/lib/mangadex";
 import { FavoriteButton } from "./favorite-button";
 import { Badge } from "@/components/ui/badge";
+import { MangaCoverImage } from "@/components/manga/cover-image";
 import { cn } from "@/lib/utils";
 
 const STATUS_STYLES: Record<string, string> = {
@@ -27,12 +27,13 @@ export function MangaCard({
       <div className="relative">
         <Link
           href={`/manga/${manga.id}`}
+          prefetch={false}
           aria-label={`Open ${manga.title}`}
           className="block rounded-cover focus-visible:ring-2 focus-visible:ring-focus"
         >
           <div className="relative aspect-[2/3] overflow-hidden rounded-cover border border-line-subtle bg-surface-muted">
             {cover ? (
-              <Image
+              <MangaCoverImage
                 src={cover}
                 alt={manga.title}
                 fill
@@ -80,6 +81,7 @@ export function MangaCard({
       <h3 className="mt-2 text-sm font-medium leading-snug">
         <Link
           href={`/manga/${manga.id}`}
+          prefetch={false}
           className="line-clamp-2 block min-h-11 rounded-sm pt-1 transition hover:text-brand-primary focus-visible:text-brand-primary"
         >
           {manga.title}

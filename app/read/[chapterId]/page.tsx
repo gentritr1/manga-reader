@@ -1,12 +1,11 @@
 import { notFound } from "next/navigation";
 import {
   getChapterInfo,
-  getChapterMangaId,
   getChapterPages,
   getChapters,
   getManga,
 } from "@/lib/mangadex-server";
-import { coverUrl } from "@/lib/mangadex";
+import { coverUrl, pageImageUrl } from "@/lib/mangadex";
 import { Reader } from "@/components/reader/reader";
 import { ExternalChapterNotice } from "@/components/reader/external-notice";
 
@@ -19,12 +18,10 @@ export default async function ReadPage({
 }) {
   const { chapterId } = await params;
 
-  const [info, mangaId] = await Promise.all([
-    getChapterInfo(chapterId),
-    getChapterMangaId(chapterId),
-  ]);
+  const info = await getChapterInfo(chapterId);
 
   if (!info) notFound();
+  const mangaId = info.mangaId;
 
   const [manga, feed] = await Promise.all([
     mangaId ? getManga(mangaId) : Promise.resolve(null),
@@ -61,13 +58,15 @@ export default async function ReadPage({
     notFound();
   }
 
-  const imageUrls = pages.data.map((_, i) => `/chapter-page/${chapterId}/${i + 1}`);
+  const useDataSaver = false;
+  const imageUrls = pages.data.map((_, i) => pageImageUrl(pages, i, useDataSaver));
 
   return (
     <Reader
       key={chapterId}
       chapterId={chapterId}
       imageUrls={imageUrls}
+      useDataSaver={useDataSaver}
       chapterLabel={chapterLabel}
       chapterTitle={info.title ?? null}
       mangaId={mangaId}

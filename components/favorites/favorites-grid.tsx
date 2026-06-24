@@ -1,9 +1,9 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { Heart, HeartOff } from "lucide-react";
 import { useFavorites } from "@/lib/use-favorites";
+import { MangaCoverImage } from "@/components/manga/cover-image";
 import { MangaGridSkeleton } from "@/components/manga/manga-grid";
 import { buttonClassName } from "@/components/ui/button";
 
@@ -37,12 +37,13 @@ export function FavoritesGrid() {
           <div className="relative">
             <Link
               href={`/manga/${f.mangaId}`}
+              prefetch={false}
               aria-label={`Open ${f.title}`}
               className="block rounded-cover focus-visible:ring-2 focus-visible:ring-focus"
             >
               <div className="relative aspect-[2/3] overflow-hidden rounded-cover border border-line-subtle bg-surface-muted">
                 {f.coverUrl ? (
-                  <Image
+                  <MangaCoverImage
                     src={f.coverUrl}
                     alt={f.title}
                     fill
@@ -68,6 +69,7 @@ export function FavoritesGrid() {
           <h3 className="mt-2 line-clamp-2 text-sm font-medium leading-snug">
             <Link
               href={`/manga/${f.mangaId}`}
+              prefetch={false}
               className="rounded-sm transition hover:text-brand-primary focus-visible:text-brand-primary"
             >
               {f.title}
