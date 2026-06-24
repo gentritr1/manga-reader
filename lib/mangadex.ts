@@ -235,9 +235,14 @@ export interface SearchParams {
 /** Build the query string for a /manga search (used by both server and client). */
 export function buildMangaQuery(params: SearchParams): string {
   const q = new URLSearchParams();
-  const limit = params.limit ?? 24;
+  const rawLimit = Math.trunc(params.limit ?? 24);
+  const limit = Number.isFinite(rawLimit)
+    ? Math.min(Math.max(rawLimit, 1), 100)
+    : 24;
+  const rawOffset = Math.trunc(params.offset ?? 0);
+  const offset = Number.isFinite(rawOffset) ? Math.max(rawOffset, 0) : 0;
   q.set("limit", String(limit));
-  q.set("offset", String(params.offset ?? 0));
+  q.set("offset", String(offset));
   q.append("includes[]", "cover_art");
   q.append("includes[]", "author");
   for (const cr of ["safe", "suggestive"]) q.append("contentRating[]", cr);

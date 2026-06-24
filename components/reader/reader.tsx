@@ -21,6 +21,7 @@ const MAX_IMAGE_RETRIES = 2;
 interface Props {
   chapterId: string;
   imageUrls: string[];
+  useDataSaver: boolean;
   chapterLabel: string;
   chapterTitle: string | null;
   mangaId: string | null;
@@ -28,6 +29,15 @@ interface Props {
   coverUrl: string | null;
   prevId: string | null;
   nextId: string | null;
+}
+
+function chapterPageProxyUrl(
+  chapterId: string,
+  page: number,
+  useDataSaver: boolean,
+) {
+  const url = `/chapter-page/${chapterId}/${page}`;
+  return useDataSaver ? `${url}?quality=data-saver` : url;
 }
 
 function allowsSpeculativeImagePreload(): boolean {
@@ -138,6 +148,7 @@ function ReaderContent(props: Props) {
       <header className="sticky top-0 z-30 flex min-h-14 items-center gap-3 border-b border-reader-line bg-reader-chrome px-4 backdrop-blur">
         <Link
           href={backHref}
+          prefetch={false}
           aria-label={`Back to ${props.mangaTitle}`}
           className="flex min-h-11 items-center gap-2 rounded-lg text-sm hover:text-reader-muted focus-visible:ring-reader-focus"
         >
@@ -240,8 +251,14 @@ function VerticalReader(props: Props) {
           <ReaderPageImage
             key={src}
             src={src}
+            fallbackSrc={chapterPageProxyUrl(
+              props.chapterId,
+              i + 1,
+              props.useDataSaver,
+            )}
             alt={`Page ${i + 1}`}
             eager={i < 2}
+            imageClassName="h-auto w-full"
           />
         ))}
       </div>
@@ -257,15 +274,20 @@ function VerticalReader(props: Props) {
 
 function ReaderPageImage({
   src,
+  fallbackSrc,
   alt,
   eager,
+  imageClassName,
 }: {
   src: string;
+  fallbackSrc: string;
   alt: string;
   eager: boolean;
+  imageClassName: string;
 }) {
   const [failed, setFailed] = useState(false);
   const [retry, setRetry] = useState(0);
+  const [usingFallback, setUsingFallback] = useState(false);
   const canRetry = retry < MAX_IMAGE_RETRIES;
 
   const retryNow = () => {
@@ -273,13 +295,16 @@ function ReaderPageImage({
     setFailed(false);
     setRetry((current) => Math.min(current + 1, MAX_IMAGE_RETRIES));
   };
+  const currentSrc = usingFallback ? fallbackSrc : src;
   const imageSrc =
-    retry > 0 ? `${src}${src.includes("?") ? "&" : "?"}readerRetry=${retry}` : src;
+    retry > 0
+      ? `${currentSrc}${currentSrc.includes("?") ? "&" : "?"}readerRetry=${retry}`
+      : currentSrc;
 
   return (
-    <div className="relative w-full overflow-hidden bg-reader-canvas">
+    <div className="relative flex w-full justify-center overflow-hidden bg-reader-canvas">
       <img
-        key={retry}
+        key={`${usingFallback ? "fallback" : "direct"}-${retry}`}
         src={imageSrc}
         alt={alt}
         width={1440}
@@ -288,8 +313,16 @@ function ReaderPageImage({
         decoding="async"
         referrerPolicy="no-referrer"
         onLoad={() => setFailed(false)}
-        onError={() => setFailed(true)}
-        className="h-auto w-full"
+        onError={() => {
+          if (!canRetry && !usingFallback) {
+            setUsingFallback(true);
+            setRetry(0);
+            setFailed(false);
+            return;
+          }
+          setFailed(true);
+        }}
+        className={imageClassName}
       />
       {failed && (
         <div className="absolute inset-0 grid place-items-center bg-reader-canvas text-xs text-reader-muted">
@@ -311,7 +344,9 @@ function ReaderPageImage({
 }
 
 function PagedReader({
+  chapterId,
   imageUrls,
+  useDataSaver,
   slide,
   total,
   lastSlide,
@@ -353,14 +388,13 @@ function PagedReader({
             <InternalAdPreview placement="reader" />
           </div>
         ) : (
-          <img
+          <ReaderPageImage
+            key={imageUrls[slide - 1]}
             src={imageUrls[slide - 1]}
+            fallbackSrc={chapterPageProxyUrl(chapterId, slide, useDataSaver)}
             alt={`Page ${slide}`}
-            width={1440}
-            height={2048}
-            decoding="async"
-            referrerPolicy="no-referrer"
-            className="max-h-[calc(100vh-7rem)] w-auto max-w-full object-contain"
+            eager
+            imageClassName="max-h-[calc(100vh-7rem)] w-auto max-w-full object-contain"
           />
         )}
       </div>

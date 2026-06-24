@@ -16,7 +16,7 @@ export function Footer() {
           <p className="flex items-center gap-2">
             <YomiMark className="h-7 w-7 shrink-0" />
             <span>
-              <span className="font-semibold text-foreground">Yomi</span>. A
+              <span className="font-semibold text-foreground">Manga Orbit</span>. A
               modern manga reader.
             </span>
           </p>

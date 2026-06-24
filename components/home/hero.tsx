@@ -1,7 +1,7 @@
-import Image from "next/image";
 import Link from "next/link";
 import { BookOpen, Compass, TrendingUp } from "lucide-react";
 import { coverUrl, type SimpleManga } from "@/lib/mangadex";
+import { MangaCoverImage } from "@/components/manga/cover-image";
 import { buttonClassName } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FavoriteButton } from "@/components/manga/favorite-button";
@@ -36,7 +36,7 @@ export function Hero({
   return (
     <section className="relative isolate overflow-hidden bg-surface-spotlight text-content-inverse">
       {cover && (
-        <Image
+        <MangaCoverImage
           src={cover}
           alt=""
           fill
@@ -53,7 +53,7 @@ export function Hero({
         <div className="min-w-0 max-w-3xl mx-auto lg:mx-0 space-y-3 text-center sm:space-y-5 lg:text-left">
           <div className="flex flex-wrap items-center justify-center gap-2 lg:justify-start">
             <Badge variant="inverse" className="w-fit px-3 py-1 text-sm text-content-inverse">
-              Yomi spotlight
+              Manga Orbit spotlight
             </Badge>
             <Badge variant="discovery" className="w-fit gap-1 px-3 py-1 text-sm">
               <TrendingUp className="h-3.5 w-3.5" aria-hidden="true" />
@@ -123,6 +123,7 @@ export function Hero({
           <div className="flex items-center justify-center gap-3 sm:flex-wrap lg:justify-start lg:pt-2">
             <Link
               href={`/manga/${manga.id}`}
+              prefetch={false}
               className={buttonClassName({
                 size: "lg",
                 className:
@@ -155,11 +156,12 @@ export function Hero({
                 <Link
                   key={item.id}
                   href={`/manga/${item.id}`}
+                  prefetch={false}
                   aria-label={`Open ${item.title}`}
                   className="relative aspect-[2/3] overflow-hidden rounded-cover border border-line-inverse bg-surface-inverse-tint [box-shadow:var(--elevation-cover)] focus-visible:ring-2 focus-visible:ring-content-inverse"
                   style={{ transform: `translateY(${index % 2 ? 24 : 0}px)` }}
                 >
-                  <Image
+                  <MangaCoverImage
                     src={item.cover as string}
                     alt=""
                     fill
@@ -207,6 +209,7 @@ function MobileCoverStage({
         <Link
           key={item.id}
           href={`/manga/${item.id}`}
+          prefetch={false}
           aria-label={`Open ${item.title}`}
           className={cn(
             "absolute aspect-[2/3] w-[calc(var(--cover-spotlight-mobile)*0.52)] overflow-hidden rounded-cover border border-line-inverse bg-surface-inverse-tint opacity-75 [box-shadow:var(--elevation-cover)] focus-visible:ring-2 focus-visible:ring-content-inverse",
@@ -216,7 +219,7 @@ function MobileCoverStage({
           )}
         >
           {item.cover ? (
-            <Image
+            <MangaCoverImage
               src={item.cover}
               alt=""
               fill
@@ -259,7 +262,7 @@ function CoverFrame({
       )}
     >
       {cover ? (
-        <Image
+        <MangaCoverImage
           src={cover}
           alt={`${title} cover`}
           fill

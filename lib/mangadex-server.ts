@@ -53,7 +53,7 @@ export async function searchManga(params: SearchParams): Promise<SearchResult> {
 
 export async function getManga(id: string): Promise<SimpleManga | null> {
   const json = await mdFetch<{ data?: unknown }>(
-    `/manga/${id}?includes[]=cover_art&includes[]=author&includes[]=artist`,
+    `/manga/${id}?includes[]=cover_art&includes[]=author`,
     3600,
   );
   if (!json?.data) return null;
@@ -83,26 +83,26 @@ export async function getChapters(
   };
 }
 
+export interface ChapterInfo extends SimpleChapter {
+  mangaId: string | null;
+}
+
 export async function getChapterInfo(
   chapterId: string,
-): Promise<SimpleChapter | null> {
-  const json = await mdFetch<{ data?: unknown }>(
+): Promise<ChapterInfo | null> {
+  const json = await mdFetch<{
+    data?: {
+      relationships?: { id: string; type: string }[];
+    };
+  }>(
     `/chapter/${chapterId}?includes[]=scanlation_group&includes[]=manga`,
     600,
   );
   if (!json?.data) return null;
-  return simplifyChapter(json.data as never);
-}
-
-/** Returns the manga id a chapter belongs to. */
-export async function getChapterMangaId(
-  chapterId: string,
-): Promise<string | null> {
-  const json = await mdFetch<{ data?: { relationships?: { id: string; type: string }[] } }>(
-    `/chapter/${chapterId}`,
-    3600,
-  );
-  return json?.data?.relationships?.find((r) => r.type === "manga")?.id ?? null;
+  return {
+    ...simplifyChapter(json.data as never),
+    mangaId: json.data.relationships?.find((r) => r.type === "manga")?.id ?? null,
+  };
 }
 
 export async function getChapterPages(

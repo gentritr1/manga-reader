@@ -90,7 +90,7 @@ export function UserMenu() {
             onClick={() => setOpen(false)}
             className="flex min-h-11 items-center gap-2 px-4 text-sm hover:bg-muted focus-visible:bg-muted"
           >
-            <Heart className="h-4 w-4" /> Support Yomi
+            <Heart className="h-4 w-4" /> Support Manga Orbit
           </Link>
           <button
             type="button"

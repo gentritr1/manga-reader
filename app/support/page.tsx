@@ -6,9 +6,9 @@ import { buttonClassName } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
-  title: "Support Yomi",
+  title: "Support Manga Orbit",
   description:
-    "Support Yomi development with optional donations. MangaDex reading access stays free for everyone.",
+    "Support Manga Orbit development with optional donations. MangaDex reading access stays free for everyone.",
 };
 
 const supportUrl = process.env.NEXT_PUBLIC_SUPPORT_URL;
@@ -43,7 +43,7 @@ export default function SupportPage() {
             Keep the shelf open.
           </h1>
           <p className="mt-8 max-w-xl text-lg leading-relaxed text-content-secondary sm:text-xl">
-            Yomi is completely free, ad-free, and maintained by fellow fans. 
+            Manga Orbit is completely free, ad-free, and maintained by fellow fans.
             Browsing is always free. Your donations strictly cover our 
             database and hosting costs so the reader stays fast.
           </p>
@@ -112,7 +112,7 @@ export default function SupportPage() {
                   The MangaDex Connection
                 </h3>
                 <p className="text-base leading-relaxed text-content-secondary mb-4 max-w-md">
-                  Donations support Yomi&apos;s operating costs only. They are never 
+                  Donations support Manga Orbit&apos;s operating costs only. They are never
                   used as payment for MangaDex content, chapter access, or API data.
                 </p>
                 <a

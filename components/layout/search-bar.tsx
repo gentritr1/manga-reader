@@ -4,9 +4,9 @@ import { Search, Loader2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import Image from "next/image";
 import Link from "next/link";
 import { Input } from "@/components/ui/input";
+import { MangaCoverImage } from "@/components/manga/cover-image";
 import { cn } from "@/lib/utils";
 import {
   MANGA_SEARCH_GC_TIME_MS,
@@ -107,12 +107,13 @@ export function SearchBar({
                   <Link
                     key={m.id}
                     href={`/manga/${m.id}`}
+                    prefetch={false}
                     onClick={() => setIsOpen(false)}
                     className="flex items-center gap-3 px-3 py-2 transition hover:bg-surface-panel-raised focus-visible:bg-surface-panel-raised"
                   >
                     <div className="relative h-14 w-10 shrink-0 overflow-hidden rounded bg-surface-muted">
                       {cover ? (
-                        <Image
+                        <MangaCoverImage
                           src={cover}
                           alt=""
                           fill

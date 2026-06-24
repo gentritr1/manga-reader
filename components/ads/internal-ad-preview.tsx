@@ -1,46 +1,17 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useSession } from "next-auth/react";
+import { useEffect, useMemo, useRef } from "react";
 import Script from "next/script";
 import { cn } from "@/lib/utils";
+import { placementConfig, type AdConfig, type AdPlacement } from "@/lib/ad-config";
+import { useAdGate } from "@/components/ads/ad-gate-provider";
 
-type AdsterraAdPlacement = "banner" | "feed" | "rectangle" | "reader";
-
-const placementClass: Record<AdsterraAdPlacement, string> = {
+const placementClass: Record<AdPlacement, string> = {
   banner: "min-h-24 max-w-3xl",
   feed: "min-h-44",
   rectangle: "min-h-64 max-w-sm",
   reader: "min-h-40 max-w-xl",
 };
-
-type AdAccessResponse = {
-  show?: boolean;
-  socialScriptUrl?: string | null;
-  adConfig?: AdConfig | null;
-};
-
-type AdAccessState = {
-  userId: string;
-  response: AdAccessResponse;
-};
-
-type NativeAdConfig = {
-  type: "native";
-  src: string;
-  containerId: string;
-  minHeight: number;
-};
-
-type IframeAdConfig = {
-  type: "iframe";
-  key: string;
-  src: string;
-  width: number;
-  height: number;
-};
-
-type AdConfig = NativeAdConfig | IframeAdConfig;
 
 type AtOptions = {
   key: string;
@@ -76,65 +47,27 @@ function injectScript({
 }
 
 export function AdsterraSocialAd() {
-  const { data: session, status } = useSession();
-  const userId = session?.user?.id;
-  const [scriptState, setScriptState] = useState<{
-    userId: string;
-    url: string;
-    run: number;
-  } | null>(null);
+  // Gate is shared from AdGateProvider; this component does no per-slot fetch.
+  const { showAds, socialScriptUrl } = useAdGate();
 
   useEffect(() => {
     document
       .querySelectorAll(`script[id^="${SOCIAL_SCRIPT_PREFIX}"]`)
       .forEach((script) => script.remove());
 
-    if (status !== "authenticated" || !userId) return;
-
-    let active = true;
-
-    fetch("/api/internal-ad-preview?placement=social", { cache: "no-store" })
-      .then((response) =>
-        response.ok
-          ? response.json()
-          : ({
-              show: false,
-              socialScriptUrl: null,
-              adConfig: null,
-            } satisfies AdAccessResponse),
-      )
-      .then((data: AdAccessResponse) => {
-        if (!active || !data.show || !data.socialScriptUrl) return;
-
-        setScriptState((current) => ({
-          userId,
-          url: data.socialScriptUrl as string,
-          run: current?.userId === userId ? current.run + 1 : 1,
-        }));
-      })
-      .catch(() => {});
-
     return () => {
-      active = false;
       document
         .querySelectorAll(`script[id^="${SOCIAL_SCRIPT_PREFIX}"]`)
         .forEach((script) => script.remove());
     };
-  }, [status, userId]);
+  }, [showAds, socialScriptUrl]);
 
-  if (
-    status !== "authenticated" ||
-    !userId ||
-    !scriptState ||
-    scriptState.userId !== userId
-  ) {
-    return null;
-  }
+  if (!showAds || !socialScriptUrl) return null;
 
   return (
     <Script
-      id={`${SOCIAL_SCRIPT_PREFIX}${userId}-${scriptState.run}`}
-      src={scriptState.url}
+      id={`${SOCIAL_SCRIPT_PREFIX}social`}
+      src={socialScriptUrl}
       strategy="afterInteractive"
       data-cfasync="false"
     />
@@ -145,52 +78,18 @@ export function AdsterraAdSlot({
   placement,
   className,
 }: {
-  placement: AdsterraAdPlacement;
+  placement: AdPlacement;
   className?: string;
 }) {
-  const { data: session, status } = useSession();
-  const userId = session?.user?.id;
-  const [adAccess, setAdAccess] = useState<AdAccessState | null>(null);
+  const { showAds, socialScriptUrl } = useAdGate();
   const iframeContainerRef = useRef<HTMLDivElement>(null);
   const nativeContainerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (status !== "authenticated" || !userId) return;
-
-    let active = true;
-
-    fetch(`/api/internal-ad-preview?placement=${placement}`, { cache: "no-store" })
-      .then((response) =>
-        response.ok
-          ? response.json()
-          : ({
-              show: false,
-              socialScriptUrl: null,
-              adConfig: null,
-            } satisfies AdAccessResponse),
-      )
-      .then((data: AdAccessResponse) => {
-        if (active) setAdAccess({ userId, response: data });
-      })
-      .catch(() => {
-        if (active) {
-          setAdAccess({
-            userId,
-            response: { show: false, socialScriptUrl: null, adConfig: null },
-          });
-        }
-      });
-
-    return () => {
-      active = false;
-    };
-  }, [placement, status, userId]);
-
-  const currentAccess =
-    status === "authenticated" && adAccess && adAccess.userId === userId
-      ? adAccess.response
-      : null;
-  const adConfig = currentAccess?.show ? currentAccess.adConfig : null;
+  // Per-placement config is built directly from NEXT_PUBLIC_* env vars.
+  const adConfig: AdConfig | null = useMemo(
+    () => (showAds ? placementConfig(placement) : null),
+    [showAds, placement],
+  );
 
   useEffect(() => {
     if (!adConfig || adConfig.type !== "iframe") return;
@@ -247,12 +146,12 @@ export function AdsterraAdSlot({
     };
   }, [adConfig, placement]);
 
-  if (status !== "authenticated" || !currentAccess?.show) return null;
+  if (!showAds) return null;
 
-  const socialScript = currentAccess.socialScriptUrl ? (
+  const socialScript = socialScriptUrl ? (
     <Script
       id={`adsterra-${placement}`}
-      src={currentAccess.socialScriptUrl}
+      src={socialScriptUrl}
       strategy="afterInteractive"
       data-cfasync="false"
     />
