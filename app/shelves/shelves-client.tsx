@@ -7,6 +7,7 @@ import { Plus, Trash2, Share, Loader2, Check, LibraryBig, BookMarked } from "luc
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { YomiMark } from "@/components/brand/yomi-mark";
+import { SITE_HOST, SITE_NAME } from "@/lib/site";
 import { toPng } from "html-to-image";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +24,13 @@ type Shelf = {
   colorVibe: string;
   items: ShelfItem[];
 };
+
+type LoadedCoverSources = Record<string, Record<string, string>>;
+
+const SHARE_CARD_WIDTH = 1080;
+const SHARE_CARD_HEIGHT = 1350;
+const SHARE_COVER_LIMIT = 6;
+const COVER_WAIT_MS = 1800;
 
 // Refined, jewel-toned shelf accents tuned to read well on the dark night-shelf
 // canvas. Keyed by the colour ids the server already validates.
@@ -50,6 +58,135 @@ const TEMPLATES: { name: string; color: string }[] = [
   { name: "All-time favorites", color: "rose" },
 ];
 
+const SHARE_SPINE_BACKGROUNDS = [
+  "linear-gradient(180deg, var(--brand-violet), color-mix(in oklch, var(--brand-violet) 42%, var(--reader-canvas)))",
+  "linear-gradient(180deg, var(--brand-cyan), color-mix(in oklch, var(--brand-cyan) 34%, var(--reader-canvas)))",
+  "linear-gradient(180deg, var(--brand-coral), color-mix(in oklch, var(--brand-coral) 34%, var(--reader-canvas)))",
+  "linear-gradient(180deg, var(--library), color-mix(in oklch, var(--library) 36%, var(--reader-canvas)))",
+  "linear-gradient(180deg, var(--discovery), color-mix(in oklch, var(--discovery) 30%, var(--reader-canvas)))",
+  "linear-gradient(180deg, var(--action-primary), color-mix(in oklch, var(--action-primary) 34%, var(--reader-canvas)))",
+];
+
+const SHARE_SLOT_OFFSETS = [26, 0, 18, 8, 30, 12];
+const SHARE_SLOT_ROTATIONS = [-2.4, 1.4, -1.2, 2, -1.8, 1];
+
+function slugifyShelfName(name: string) {
+  const slug = name
+    .trim()
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return slug || "shelf";
+}
+
+function waitForPaint() {
+  return new Promise<void>((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  });
+}
+
+async function waitForFonts() {
+  if ("fonts" in document) {
+    await document.fonts.ready.catch(() => undefined);
+  }
+}
+
+async function waitForImageReady(img: HTMLImageElement) {
+  if (img.complete) {
+    if (img.naturalWidth > 0) {
+      await img.decode().catch(() => undefined);
+      return true;
+    }
+    return false;
+  }
+
+  return new Promise<boolean>((resolve) => {
+    let settled = false;
+    const finish = async (ready: boolean) => {
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeout);
+      img.removeEventListener("load", handleLoad);
+      img.removeEventListener("error", handleError);
+      if (ready) await img.decode().catch(() => undefined);
+      resolve(ready);
+    };
+    const handleLoad = () => void finish(img.naturalWidth > 0);
+    const handleError = () => void finish(false);
+    const timeout = window.setTimeout(() => void finish(false), COVER_WAIT_MS);
+
+    img.addEventListener("load", handleLoad);
+    img.addEventListener("error", handleError);
+  });
+}
+
+function sameOriginImageSource(img: HTMLImageElement) {
+  const source = img.currentSrc || img.src;
+  if (!source) return null;
+  if (source.startsWith("data:") || source.startsWith("blob:")) return source;
+
+  try {
+    const url = new URL(source, window.location.href);
+    return url.origin === window.location.origin ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+function loadedImageDataUrl(img: HTMLImageElement) {
+  if (!sameOriginImageSource(img) || img.naturalWidth <= 0 || img.naturalHeight <= 0) {
+    return null;
+  }
+
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const context = canvas.getContext("2d");
+    if (!context) return null;
+    context.drawImage(img, 0, 0);
+    return canvas.toDataURL("image/png");
+  } catch {
+    return null;
+  }
+}
+
+async function collectLoadedShelfCoverSources(
+  shelfId: string,
+  items: ShelfItem[],
+) {
+  const shelfEl = document.getElementById(`shelf-${shelfId}`);
+  if (!shelfEl) return {};
+
+  const images = Array.from(
+    shelfEl.querySelectorAll<HTMLImageElement>("img[data-share-cover-id]"),
+  );
+  const imageByItemId = new Map(
+    images.map((img) => [img.dataset.shareCoverId, img]),
+  );
+  const entries = await Promise.all(
+    items.map(async (item) => {
+      const img = imageByItemId.get(item.id);
+      if (!img) return null;
+
+      const ready = await waitForImageReady(img);
+      if (!ready) return null;
+
+      const source = loadedImageDataUrl(img);
+      return source ? ([item.id, source] as const) : null;
+    }),
+  );
+
+  return Object.fromEntries(entries.filter((entry) => entry !== null));
+}
+
+async function waitForRenderedImages(root: HTMLElement) {
+  const images = Array.from(root.querySelectorAll("img"));
+  await Promise.all(images.map((img) => waitForImageReady(img)));
+}
+
 export function ShelvesClient({ initialShelves }: { initialShelves: Shelf[] }) {
   const [name, setName] = useState("");
   const [color, setColor] = useState("violet");
@@ -57,6 +194,10 @@ export function ShelvesClient({ initialShelves }: { initialShelves: Shelf[] }) {
   const [pendingTemplate, setPendingTemplate] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [exportingId, setExportingId] = useState<string | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
+  const [coverSourcesByShelf, setCoverSourcesByShelf] =
+    useState<LoadedCoverSources>({});
 
   const existingNames = new Set(
     initialShelves.map((s) => s.name.trim().toLowerCase()),
@@ -104,17 +245,42 @@ export function ShelvesClient({ initialShelves }: { initialShelves: Shelf[] }) {
     }
   };
 
-  const handleExport = async (shelfId: string, shelfName: string) => {
-    const el = document.getElementById(`shelf-${shelfId}`);
-    if (!el) return;
+  const handleExport = async (shelf: Shelf) => {
+    setExportError(null);
+    setExportingId(shelf.id);
+
     try {
-      const dataUrl = await toPng(el, { backgroundColor: "#0a0a12", pixelRatio: 2 });
+      const coverSources = await collectLoadedShelfCoverSources(
+        shelf.id,
+        shelf.items.slice(0, SHARE_COVER_LIMIT),
+      );
+      setCoverSourcesByShelf((current) => ({
+        ...current,
+        [shelf.id]: coverSources,
+      }));
+      await waitForPaint();
+
+      const el = document.getElementById(`share-shelf-${shelf.id}`);
+      if (!el) return;
+
+      await waitForFonts();
+      await waitForRenderedImages(el);
+
+      const dataUrl = await toPng(el, {
+        backgroundColor: getComputedStyle(el).backgroundColor,
+        pixelRatio: 2,
+      });
       const link = document.createElement("a");
-      link.download = `yomi-${shelfName.replace(/\s+/g, "-").toLowerCase()}.png`;
+      link.download = `yomi-shelf-${slugifyShelfName(shelf.name)}.png`;
       link.href = dataUrl;
+      document.body.appendChild(link);
       link.click();
+      link.remove();
     } catch (err) {
-      console.error("Failed to export image:", err);
+      console.error("Failed to export shelf image:", err);
+      setExportError("Could not create the shelf image. Try again.");
+    } finally {
+      setExportingId((current) => (current === shelf.id ? null : current));
     }
   };
 
@@ -233,17 +399,40 @@ export function ShelvesClient({ initialShelves }: { initialShelves: Shelf[] }) {
 
       {/* Shelves */}
       {hasShelves ? (
-        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
-          {initialShelves.map((shelf) => (
-            <ShelfCard
-              key={shelf.id}
-              shelf={shelf}
-              deleting={deletingId === shelf.id}
-              onDelete={() => handleDelete(shelf.id)}
-              onExport={() => handleExport(shelf.id, shelf.name)}
-            />
-          ))}
-        </div>
+        <>
+          {exportError && (
+            <p
+              role="status"
+              className="rounded-card border border-danger/30 bg-danger/10 px-4 py-3 text-sm font-medium text-danger"
+            >
+              {exportError}
+            </p>
+          )}
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+            {initialShelves.map((shelf) => (
+              <ShelfCard
+                key={shelf.id}
+                shelf={shelf}
+                deleting={deletingId === shelf.id}
+                exporting={exportingId === shelf.id}
+                onDelete={() => handleDelete(shelf.id)}
+                onExport={() => handleExport(shelf)}
+              />
+            ))}
+          </div>
+          <div
+            aria-hidden="true"
+            className="pointer-events-none fixed left-[-20000px] top-0 z-[-1] overflow-hidden"
+          >
+            {initialShelves.map((shelf) => (
+              <ShareShelfCard
+                key={shelf.id}
+                shelf={shelf}
+                coverSources={coverSourcesByShelf[shelf.id] ?? {}}
+              />
+            ))}
+          </div>
+        </>
       ) : (
         <EmptyState />
       )}
@@ -267,11 +456,13 @@ function EmptyState() {
 function ShelfCard({
   shelf,
   deleting,
+  exporting,
   onDelete,
   onExport,
 }: {
   shelf: Shelf;
   deleting: boolean;
+  exporting: boolean;
   onDelete: () => void;
   onExport: () => void;
 }) {
@@ -329,6 +520,7 @@ function ShelfCard({
                       alt=""
                       fill
                       sizes="120px"
+                      data-share-cover-id={item.id}
                       className="object-cover"
                     />
                   )}
@@ -345,10 +537,16 @@ function ShelfCard({
           size="icon"
           variant="secondary"
           onClick={onExport}
-          aria-label={`Save ${shelf.name} as image`}
+          disabled={exporting}
+          aria-label={`Share shelf ${shelf.name}`}
+          title="Share shelf"
           className="h-9 w-9 backdrop-blur"
         >
-          <Share className="h-4 w-4" />
+          {exporting ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Share className="h-4 w-4" />
+          )}
         </Button>
         <Button
           size="icon"
@@ -365,6 +563,208 @@ function ShelfCard({
           {deleting ? <Check className="h-4 w-4" /> : <Trash2 className="h-4 w-4" />}
         </Button>
       </div>
+    </div>
+  );
+}
+
+function ShareShelfCard({
+  shelf,
+  coverSources,
+}: {
+  shelf: Shelf;
+  coverSources: Record<string, string>;
+}) {
+  const count = shelf.items.length;
+  const slots = Array.from({ length: SHARE_COVER_LIMIT }, (_, index) => ({
+    item: shelf.items[index],
+    index,
+  }));
+  const titleFontSize =
+    shelf.name.length > 44 ? 58 : shelf.name.length > 28 ? 68 : 82;
+  const countLabel =
+    count === 0 ? "Empty shelf" : `${count} title${count === 1 ? "" : "s"}`;
+
+  return (
+    <div
+      id={`share-shelf-${shelf.id}`}
+      className="dark relative overflow-hidden"
+      style={{
+        width: SHARE_CARD_WIDTH,
+        height: SHARE_CARD_HEIGHT,
+        backgroundColor: "var(--reader-canvas)",
+        backgroundImage:
+          "radial-gradient(circle at 50% 20%, color-mix(in oklch, var(--brand-violet) 22%, transparent), transparent 36%), radial-gradient(circle at 80% 56%, color-mix(in oklch, var(--brand-cyan) 14%, transparent), transparent 28%), linear-gradient(180deg, var(--surface-spotlight) 0%, var(--reader-canvas) 72%)",
+        color: "var(--content-inverse)",
+        fontFamily: "var(--font-sans)",
+      }}
+    >
+      <div
+        aria-hidden="true"
+        className="absolute inset-x-16 top-16 h-1.5 rounded-full"
+        style={{ backgroundImage: "var(--shelf-edge)" }}
+      />
+
+      <div className="absolute inset-x-20 top-36">
+        <p
+          className="font-black"
+          style={{
+            color: "var(--content-inverse-muted)",
+            fontSize: 28,
+            letterSpacing: 0,
+          }}
+        >
+          {SITE_NAME} shelf
+        </p>
+        <h2
+          className="mt-7 font-black leading-[0.98]"
+          style={{
+            display: "-webkit-box",
+            fontSize: titleFontSize,
+            letterSpacing: 0,
+            maxHeight: 176,
+            overflow: "hidden",
+            WebkitBoxOrient: "vertical",
+            WebkitLineClamp: 2,
+            textWrap: "balance",
+          }}
+        >
+          {shelf.name}
+        </h2>
+        <p
+          className="mt-8 font-bold"
+          style={{
+            color: "var(--content-inverse-muted)",
+            fontSize: 30,
+            letterSpacing: 0,
+          }}
+        >
+          {countLabel}
+        </p>
+      </div>
+
+      <div className="absolute inset-x-20 top-[500px] h-[620px]">
+        <div className="relative h-full">
+          <div
+            aria-hidden="true"
+            className="absolute inset-x-0 bottom-[190px] h-8 rounded-full"
+            style={{
+              backgroundImage: "var(--shelf-edge)",
+              boxShadow:
+                "0 32px 70px color-mix(in oklch, var(--brand-violet) 28%, transparent)",
+            }}
+          />
+          <div
+            aria-hidden="true"
+            className="absolute inset-x-8 bottom-[156px] h-20 rounded-[999px]"
+            style={{
+              background:
+                "linear-gradient(180deg, color-mix(in oklch, var(--content-inverse) 14%, transparent), color-mix(in oklch, var(--reader-canvas) 76%, transparent))",
+              filter: "blur(18px)",
+            }}
+          />
+
+          <div className="absolute inset-x-0 bottom-[218px] flex h-[360px] items-end justify-center gap-5">
+            {slots.map(({ item, index }) => {
+              const source = item ? coverSources[item.id] ?? null : null;
+              return (
+                <ShareShelfSlot
+                  key={item?.id ?? `empty-${index}`}
+                  index={index}
+                  source={source}
+                  title={item?.title}
+                />
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <footer className="absolute inset-x-20 bottom-20 flex items-center justify-between gap-8 border-t border-line-inverse pt-8">
+        <span
+          className="font-black"
+          style={{ fontSize: 24, letterSpacing: 0, color: "var(--content-inverse)" }}
+        >
+          {SITE_HOST}
+        </span>
+        <span
+          className="font-bold"
+          style={{
+            color: "var(--content-inverse-muted)",
+            fontSize: 24,
+            letterSpacing: 0,
+          }}
+        >
+          Made with {SITE_NAME}
+        </span>
+      </footer>
+    </div>
+  );
+}
+
+function ShareShelfSlot({
+  index,
+  source,
+  title,
+}: {
+  index: number;
+  source: string | null;
+  title?: string;
+}) {
+  const width = 128 + (index % 2) * 10;
+  const height = Math.round(width * 1.5);
+
+  return (
+    <div
+      className="relative shrink-0 overflow-hidden rounded-[22px] ring-1 ring-line-inverse"
+      style={{
+        width,
+        height,
+        background: SHARE_SPINE_BACKGROUNDS[index % SHARE_SPINE_BACKGROUNDS.length],
+        boxShadow:
+          "0 28px 60px color-mix(in oklch, var(--reader-canvas) 58%, transparent)",
+        transform: `translateY(${SHARE_SLOT_OFFSETS[index]}px) rotate(${SHARE_SLOT_ROTATIONS[index]}deg)`,
+      }}
+    >
+      {source ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={source}
+          alt=""
+          draggable={false}
+          style={{
+            display: "block",
+            height: "100%",
+            objectFit: "cover",
+            width: "100%",
+          }}
+        />
+      ) : (
+        <div className="absolute inset-0">
+          <div
+            className="absolute inset-y-5 left-4 w-1 rounded-full"
+            style={{ background: "color-mix(in oklch, var(--content-inverse) 48%, transparent)" }}
+          />
+          <div
+            className="absolute bottom-5 left-5 right-5 h-3 rounded-full"
+            style={{ background: "color-mix(in oklch, var(--content-inverse) 28%, transparent)" }}
+          />
+          {title && (
+            <span
+              className="absolute inset-x-6 top-7 font-black leading-none"
+              style={{
+                color: "color-mix(in oklch, var(--content-inverse) 84%, transparent)",
+                fontSize: 18,
+                letterSpacing: 0,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {title}
+            </span>
+          )}
+        </div>
+      )}
     </div>
   );
 }
