@@ -45,6 +45,8 @@ export function Select<T extends string>({
   }, [open]);
 
   useEffect(() => {
+    // Sync the highlighted option to the current value each time the menu opens.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (open) setActiveIndex(options.findIndex((o) => o.value === value));
   }, [open, options, value]);
 

@@ -1,13 +1,22 @@
-// This local branch uses SQLite. Before production deploy, switch the provider
-// to PostgreSQL and create a migration against the hosted DATABASE_URL.
+// Use Postgres for deployed environments.
+//
+// On Vercel (serverless), every concurrent function instance opens its own DB
+// connection, so DATABASE_URL MUST be a POOLED connection string (Neon pooler,
+// Supabase port 6543 / pgbouncer, or Prisma Accelerate) to avoid exhausting
+// Postgres connection limits under load.
+//
+// Transaction-mode poolers do not support the statements `prisma migrate`
+// needs, so DIRECT_URL points at the UNPOOLED (direct) connection used only for
+// migrations and introspection. See .env.example and docs/vercel-cache-strategy.md.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {

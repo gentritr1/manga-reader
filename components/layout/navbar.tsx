@@ -20,11 +20,11 @@ export function Navbar() {
         <Link
           href="/"
           className="flex min-h-11 shrink-0 items-center gap-2 rounded-lg focus-visible:ring-2 focus-visible:ring-focus"
-          aria-label="Yomi home"
+          aria-label="Manga Orbit home"
         >
           <YomiMark className="h-10 w-10 shrink-0 [filter:drop-shadow(0_10px_18px_rgb(36_19_95_/_0.22))]" />
           <span className="hidden text-lg font-black tracking-tight min-[420px]:inline">
-            Yomi
+            Manga Orbit
           </span>
         </Link>
 

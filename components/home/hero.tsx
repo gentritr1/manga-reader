@@ -1,7 +1,7 @@
-import Image from "next/image";
 import Link from "next/link";
 import { BookOpen, Compass, Sparkles, TrendingUp } from "lucide-react";
 import { coverUrl, type SimpleManga } from "@/lib/mangadex";
+import { MangaCoverImage } from "@/components/manga/cover-image";
 import { buttonClassName } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FavoriteButton } from "@/components/manga/favorite-button";
@@ -49,7 +49,7 @@ export function Hero({
         <div className="yomi-rise yomi-delay-1 mx-0 w-full min-w-0 max-w-[22rem] space-y-4 text-center sm:mx-auto sm:max-w-3xl sm:space-y-6 lg:order-1 lg:mx-0 lg:text-left">
           <div className="flex flex-wrap items-center justify-center gap-2 lg:justify-start">
             <Badge variant="inverse" className="w-fit px-3 py-1 text-sm font-semibold tracking-wide">
-              Yomi spotlight
+              Manga Orbit spotlight
             </Badge>
             {genre && (
               <Badge
@@ -97,6 +97,7 @@ export function Hero({
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 lg:justify-start pt-2">
             <Link
               href={`/manga/${manga.id}`}
+              prefetch={false}
               className={buttonClassName({
                 size: "lg",
                 className: "w-full min-w-0 bg-action-primary text-action-primary-foreground shadow-action-primary/20 hover:brightness-110 sm:w-auto",
@@ -165,7 +166,7 @@ function CollageSide({ cover, className }: { cover: string; className: string })
       )}
     >
       <div className="relative aspect-[2/3] w-full">
-        <Image
+        <MangaCoverImage
           src={cover}
           alt=""
           fill
@@ -199,7 +200,7 @@ function CoverFrame({
       )}
     >
       {cover ? (
-        <Image
+        <MangaCoverImage
           src={cover}
           alt={`${title} cover`}
           fill

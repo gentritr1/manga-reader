@@ -1,12 +1,11 @@
 import { notFound } from "next/navigation";
 import {
   getChapterInfo,
-  getChapterMangaId,
   getChapterPages,
   getChapters,
   getManga,
 } from "@/lib/mangadex-server";
-import { coverUrl } from "@/lib/mangadex";
+import { coverUrl, pageImageUrl } from "@/lib/mangadex";
 import { Reader } from "@/components/reader/reader";
 import { ExternalChapterNotice } from "@/components/reader/external-notice";
 import { auth } from "@/lib/auth";
@@ -21,19 +20,22 @@ export default async function ReadPage({
 }) {
   const { chapterId } = await params;
 
-  const [info, mangaId, session] = await Promise.all([
+  const [info, session] = await Promise.all([
     getChapterInfo(chapterId),
-    getChapterMangaId(chapterId),
     auth(),
   ]);
 
   if (!info) notFound();
+  const mangaId = info.mangaId;
 
-  const [manga, feed] = await Promise.all([
+  // External / licensed chapters have no in-app pages, so skip the pages fetch.
+  const needPages = !(info.externalUrl || info.pages === 0);
+  const [manga, feed, pages] = await Promise.all([
     mangaId ? getManga(mangaId) : Promise.resolve(null),
     mangaId
       ? getChapters(mangaId, { order: "asc", limit: 500 })
       : Promise.resolve({ chapters: [], total: 0 }),
+    needPages ? getChapterPages(chapterId) : Promise.resolve(null),
   ]);
 
   const idx = feed.chapters.findIndex((c) => c.id === chapterId);
@@ -45,9 +47,6 @@ export default async function ReadPage({
   const cover = manga ? coverUrl(manga.id, manga.coverFileName, 256) : null;
 
   // External / licensed chapters have no in-app pages, so show a notice instead.
-  const pages =
-    info.externalUrl || info.pages === 0 ? null : await getChapterPages(chapterId);
-
   if (!pages || pages.data.length === 0) {
     if (info.externalUrl) {
       return (
@@ -77,13 +76,15 @@ export default async function ReadPage({
     }
   }
 
-  const imageUrls = pages.data.map((_, i) => `/chapter-page/${chapterId}/${i + 1}`);
+  const useDataSaver = false;
+  const imageUrls = pages.data.map((_, i) => pageImageUrl(pages, i, useDataSaver));
 
   return (
     <Reader
       key={chapterId}
       chapterId={chapterId}
       imageUrls={imageUrls}
+      useDataSaver={useDataSaver}
       chapterLabel={chapterLabel}
       chapterTitle={info.title ?? null}
       mangaId={mangaId}

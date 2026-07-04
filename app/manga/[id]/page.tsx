@@ -1,11 +1,11 @@
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { BookOpen } from "lucide-react";
 import { getChapters, getManga } from "@/lib/mangadex-server";
 import { coverUrl, isReadable } from "@/lib/mangadex";
-import { SITE_URL } from "@/lib/site";
+import { SITE_NAME, SITE_URL } from "@/lib/site";
+import { MangaCoverImage } from "@/components/manga/cover-image";
 import { buttonClassName } from "@/components/ui/button";
 import { FavoriteButton } from "@/components/manga/favorite-button";
 import { Synopsis } from "@/components/manga/synopsis";
@@ -26,7 +26,7 @@ export async function generateMetadata({
   const title = manga?.title ?? "Manga";
   const description =
     manga?.description?.slice(0, 200) ||
-    `Read ${title} online for free on Yomi.`;
+    `Read ${title} online for free on ${SITE_NAME}.`;
   const cover = manga ? coverUrl(manga.id, manga.coverFileName, 512) : null;
   const canonical = `/manga/${id}`;
 
@@ -97,13 +97,24 @@ export default async function MangaDetailPage({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-
+      {/* Backdrop */}
+      <div className="absolute inset-x-0 top-0 h-72 overflow-hidden">
+        {cover && (
+          <MangaCoverImage
+            src={cover}
+            alt=""
+            fill
+            className="object-cover opacity-20 blur-2xl"
+          />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-background" />
+      </div>
 
       <div className="relative mx-auto max-w-5xl px-4 py-8">
         <div className="flex flex-col gap-5 min-[480px]:flex-row min-[480px]:gap-6">
           <div className="relative aspect-[2/3] w-36 shrink-0 overflow-hidden rounded-cover border border-line-subtle shadow-2xl min-[480px]:w-44">
             {cover ? (
-              <Image
+              <MangaCoverImage
                 src={cover}
                 alt={manga.title}
                 fill
@@ -152,6 +163,7 @@ export default async function MangaDetailPage({
               {firstChapter && (
                 <Link
                   href={`/read/${firstChapter.id}`}
+                  prefetch={false}
                   className={buttonClassName({
                     size: "lg",
                     className: "flex-1 min-[480px]:flex-none",

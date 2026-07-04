@@ -16,7 +16,7 @@ import { buttonClassName } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type Mode = "vertical" | "paged";
-const MAX_IMAGE_RETRIES = 3;
+const MAX_IMAGE_RETRIES = 2;
 
 interface ReaderSessionState {
   startedAt: number;
@@ -29,6 +29,7 @@ interface ReaderSessionState {
 interface Props {
   chapterId: string;
   imageUrls: string[];
+  useDataSaver: boolean;
   chapterLabel: string;
   chapterTitle: string | null;
   mangaId: string | null;
@@ -37,6 +38,27 @@ interface Props {
   prevId: string | null;
   nextId: string | null;
   recap?: string | null;
+}
+
+function chapterPageProxyUrl(
+  chapterId: string,
+  page: number,
+  useDataSaver: boolean,
+) {
+  const url = `/chapter-page/${chapterId}/${page}`;
+  return useDataSaver ? `${url}?quality=data-saver` : url;
+}
+
+function allowsSpeculativeImagePreload(): boolean {
+  const connection = (
+    navigator as Navigator & {
+      connection?: { effectiveType?: string; saveData?: boolean };
+    }
+  ).connection;
+  return (
+    !connection?.saveData &&
+    !["slow-2g", "2g"].includes(connection?.effectiveType ?? "")
+  );
 }
 
 export function Reader(props: Props) {
@@ -63,6 +85,9 @@ function ReaderContent(props: Props) {
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (localStorage.getItem("reader-hint-seen")) return;
+    // One-time hint driven by localStorage (client-only) — an effect avoids a
+    // hydration mismatch, so the synchronous setState here is intentional.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setShowHint(true);
     localStorage.setItem("reader-hint-seen", "1");
     const timer = setTimeout(() => setShowHint(false), 4200);
@@ -250,14 +275,12 @@ function ReaderContent(props: Props) {
 
   // Preload neighbour image in paged mode.
   useEffect(() => {
-    if (mode !== "paged") return;
-    const i = slide; // current page index in 1..N maps to imageUrls[slide-1]
-    [i, i + 1].forEach((p) => {
-      if (p >= 1 && p <= total) {
-        const img = new Image();
-        img.src = imageUrls[p - 1];
-      }
-    });
+    if (mode !== "paged" || !allowsSpeculativeImagePreload()) return;
+    const nextPage = slide + 1;
+    if (nextPage >= 1 && nextPage <= total) {
+      const img = new Image();
+      img.src = imageUrls[nextPage - 1];
+    }
   }, [slide, mode, imageUrls, total]);
 
   const backHref = mangaId ? `/manga/${mangaId}` : "/";
@@ -287,6 +310,7 @@ function ReaderContent(props: Props) {
       <header className={cn("sticky top-0 z-30 flex min-h-14 items-center gap-3 border-b border-reader-line bg-reader-chrome px-4 backdrop-blur transition-all duration-300", zenMode && "-translate-y-full opacity-0 pointer-events-none")}>
         <Link
           href={backHref}
+          prefetch={false}
           aria-label={`Back to ${props.mangaTitle}`}
           className="flex min-h-11 items-center gap-2 rounded-lg text-sm hover:text-reader-muted focus-visible:ring-reader-focus"
         >
@@ -412,10 +436,16 @@ function VerticalReader(
           <ReaderPageImage
             key={src}
             src={src}
+            fallbackSrc={chapterPageProxyUrl(
+              props.chapterId,
+              i + 1,
+              props.useDataSaver,
+            )}
             alt={`Page ${i + 1}`}
             pageNumber={i + 1}
             eager={i < 2}
             onVisible={props.onPageVisible}
+            imageClassName="h-auto w-full"
           />
         ))}
       </div>
@@ -431,23 +461,29 @@ function VerticalReader(
 
 function ReaderPageImage({
   src,
+  fallbackSrc,
   alt,
   pageNumber,
   eager,
   onVisible,
+  imageClassName,
 }: {
   src: string;
+  fallbackSrc: string;
   alt: string;
   pageNumber: number;
   eager: boolean;
-  onVisible: (pageNumber: number) => void;
+  onVisible?: (pageNumber: number) => void;
+  imageClassName: string;
 }) {
   const [failed, setFailed] = useState(false);
   const [retry, setRetry] = useState(0);
+  const [usingFallback, setUsingFallback] = useState(false);
   const pageRef = useRef<HTMLDivElement>(null);
   const canRetry = retry < MAX_IMAGE_RETRIES;
 
   useEffect(() => {
+    if (!onVisible) return;
     const element = pageRef.current;
     if (!element) return;
     if (typeof IntersectionObserver === "undefined") {
@@ -473,13 +509,16 @@ function ReaderPageImage({
     setFailed(false);
     setRetry((current) => Math.min(current + 1, MAX_IMAGE_RETRIES));
   };
+  const currentSrc = usingFallback ? fallbackSrc : src;
   const imageSrc =
-    retry > 0 ? `${src}${src.includes("?") ? "&" : "?"}readerRetry=${retry}` : src;
+    retry > 0
+      ? `${currentSrc}${currentSrc.includes("?") ? "&" : "?"}readerRetry=${retry}`
+      : currentSrc;
 
   return (
-    <div ref={pageRef} className="relative w-full overflow-hidden bg-reader-canvas">
+    <div ref={pageRef} className="relative flex w-full justify-center overflow-hidden bg-reader-canvas">
       <img
-        key={retry}
+        key={`${usingFallback ? "fallback" : "direct"}-${retry}`}
         src={imageSrc}
         alt={alt}
         width={1440}
@@ -488,8 +527,16 @@ function ReaderPageImage({
         decoding="async"
         referrerPolicy="no-referrer"
         onLoad={() => setFailed(false)}
-        onError={() => setFailed(true)}
-        className="h-auto w-full"
+        onError={() => {
+          if (!canRetry && !usingFallback) {
+            setUsingFallback(true);
+            setRetry(0);
+            setFailed(false);
+            return;
+          }
+          setFailed(true);
+        }}
+        className={imageClassName}
       />
       {failed && (
         <div className="absolute inset-0 grid place-items-center bg-reader-canvas text-xs text-reader-muted">
@@ -514,7 +561,9 @@ function ReaderPageImage({
 }
 
 function PagedReader({
+  chapterId,
   imageUrls,
+  useDataSaver,
   slide,
   total,
   lastSlide,
@@ -583,14 +632,17 @@ function PagedReader({
                 className="h-full w-full object-cover blur-[80px]"
               />
             </div>
-            <img
+            <ReaderPageImage
+              key={imageUrls[slide - 1]}
               src={imageUrls[slide - 1]}
+              fallbackSrc={chapterPageProxyUrl(chapterId, slide, useDataSaver)}
               alt={`Page ${slide}`}
-              width={1440}
-              height={2048}
-              decoding="async"
-              referrerPolicy="no-referrer"
-              className={cn("w-auto max-w-full object-contain drop-shadow-2xl transition-all duration-300", zenMode ? "max-h-screen" : "max-h-[calc(100vh-7rem)]")}
+              pageNumber={slide}
+              eager
+              imageClassName={cn(
+                "w-auto max-w-full object-contain drop-shadow-2xl transition-all duration-300",
+                zenMode ? "max-h-screen" : "max-h-[calc(100vh-7rem)]",
+              )}
             />
           </>
         )}

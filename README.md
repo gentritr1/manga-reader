@@ -59,14 +59,10 @@ npm run dev                       # http://localhost:3000
   redirect URI in Google Cloud Console.
 - `NEXT_PUBLIC_SUPPORT_URL` — optional. When set, the support page links to your
   donation provider.
-- `ADSTERRA_SCRIPT_URL` — optional. When set, the script is returned only for
-  authenticated accounts that are among the first two users in the database.
-- `ADSTERRA_ALLOWED_EMAILS` — optional comma-separated override for the exact
-  email accounts that should see gated ads, for example
-  `you@example.com,other@example.com`. When omitted, the app falls back to the
-  first two users in the database.
+- `ADSTERRA_SCRIPT_URL` — optional, server-only. When set, the social script is
+  injected only for the first two created user accounts.
 - `NEXT_PUBLIC_ADS_ENABLED` — set to `true` to enable the configured in-page
-  Adsterra placements for those first two accounts.
+  Adsterra placements for those same first two accounts.
 - `NEXT_PUBLIC_ADSTERRA_BANNER_KEY` — optional 728x90 home/detail banner key.
 - `NEXT_PUBLIC_ADSTERRA_CHAPTER_END_KEY` — optional 300x250 reader-end key.
 - `NEXT_PUBLIC_ADSTERRA_CHAPTER_START_SRC` /
@@ -78,9 +74,19 @@ npm run dev                       # http://localhost:3000
 The app uses **Postgres** through Prisma. Create a hosted database with Neon,
 Supabase, Vercel Postgres, or another Postgres provider, then:
 
-1. Set `DATABASE_URL` to the hosted Postgres connection string.
-2. Run `npx prisma db push` against that database.
-3. Add the same `DATABASE_URL` in Vercel project environment variables.
+1. Set `DATABASE_URL` to the **pooled** Postgres connection string (Neon pooler,
+   Supabase port `6543`, or Prisma Accelerate). On Vercel serverless an unpooled
+   URL exhausts DB connection limits under load.
+2. Set `DIRECT_URL` to the **unpooled** connection string for migrations
+   (transaction-mode poolers break `prisma migrate`).
+3. If `DATABASE_URL` starts with `prisma://`, `lib/prisma.ts` automatically
+   enables Prisma Accelerate's client extension.
+4. Put both `DATABASE_URL` and `DIRECT_URL` in `.env` — the Prisma CLI reads
+   `.env`, not `.env.local`. If you keep them in `.env.local`, run Prisma with
+   dotenv instead, e.g. `dotenv -e .env.local -- npx prisma migrate dev`.
+5. Run `npx prisma db push` (or `prisma migrate`) against that database.
+6. Add the same `DATABASE_URL` and `DIRECT_URL` in Vercel project environment
+   variables.
 
 ## Support and source policy
 
@@ -98,9 +104,8 @@ If you want revenue ads or paid product plans, first switch to a content source
 or license model that explicitly allows monetization.
 
 `ADSTERRA_SCRIPT_URL` and the configured in-page Adsterra placements are
-intentionally gated to authenticated accounts that are among the first two users
-in the database. The API returns no ad config for logged-out users or any later
-account.
+intentionally gated to the first two created user accounts. Logged-out users and
+later accounts see no ad config.
 
 ## How content works
 

@@ -11,6 +11,9 @@ export interface ClientSearchResult {
   total: number;
 }
 
+export const MANGA_SEARCH_STALE_TIME_MS = 5 * 60 * 1000;
+export const MANGA_SEARCH_GC_TIME_MS = 30 * 60 * 1000;
+
 export async function searchMangaClient(
   params: SearchParams,
   signal?: AbortSignal,

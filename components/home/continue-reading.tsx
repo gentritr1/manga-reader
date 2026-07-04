@@ -1,11 +1,11 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { ArrowRight, LogIn, Play } from "lucide-react";
 import { coverUrl, type SimpleManga } from "@/lib/mangadex";
+import { MangaCoverImage } from "@/components/manga/cover-image";
 import { Section } from "@/components/manga/section";
 import { buttonClassName } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -73,11 +73,12 @@ export function ContinueReading({
             <Link
               key={item.mangaId}
               href={`/read/${item.chapterId}`}
+              prefetch={false}
               className="group relative flex min-h-28 w-64 shrink-0 gap-3 overflow-hidden rounded-card border border-line-subtle bg-surface-panel p-3 transition hover:-translate-y-0.5 hover:border-brand-primary/45 hover:[box-shadow:var(--elevation-hover)] focus-visible:border-brand-primary"
             >
               <div className="relative aspect-[2/3] w-14 shrink-0 overflow-hidden rounded-md bg-surface-muted">
                 {item.coverUrl && (
-                  <Image
+                  <MangaCoverImage
                     src={item.coverUrl}
                     alt={`${item.title} cover`}
                     fill
@@ -153,11 +154,12 @@ function EmptyContinueReading({
                 <Link
                   key={manga.id}
                   href={`/manga/${manga.id}`}
+                  prefetch={false}
                   className="group grid grid-cols-[4.25rem_minmax(0,1fr)] gap-3 rounded-lg p-2 transition hover:bg-surface-muted/40 focus-visible:bg-surface-muted/40 focus-visible:ring-2 focus-visible:ring-focus sm:block"
                 >
                   <div className="relative aspect-[2/3] overflow-hidden rounded-md bg-surface-muted sm:w-full">
                     {cover ? (
-                      <Image
+                      <MangaCoverImage
                         src={cover}
                         alt={`${manga.title} cover`}
                         fill

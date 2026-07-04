@@ -68,6 +68,7 @@ export function ChapterList({ chapters }: { chapters: SimpleChapter[] }) {
           <li className="border-b border-line-subtle/70">
             <Link
               href={`/read/${c.id}`}
+              prefetch={false}
               className="group flex items-center justify-between gap-3 px-4 py-3 transition hover:bg-muted focus-visible:bg-muted"
             >
               {title}
