@@ -1,6 +1,10 @@
+import { Fragment } from "react";
 import Link from "next/link";
 import { ChevronRight, ExternalLink } from "lucide-react";
 import { isReadable, type SimpleChapter } from "@/lib/mangadex";
+import { InternalAdPreview } from "@/components/ads/internal-ad-preview";
+
+const DETAIL_PREVIEW_AFTER_CHAPTERS = 8;
 
 function chapterLabel(c: SimpleChapter) {
   const parts: string[] = [];
@@ -21,59 +25,68 @@ function Meta({ c }: { c: SimpleChapter }) {
 export function ChapterList({ chapters }: { chapters: SimpleChapter[] }) {
   if (chapters.length === 0) {
     return (
-      <p className="rounded-xl border border-border bg-card p-6 text-center text-sm text-muted-foreground">
+      <p className="py-6 text-center text-sm text-muted-foreground">
         No English chapters available for this title yet.
       </p>
     );
   }
 
   return (
-    <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
-      {chapters.map((c) => {
+    <ul className="grid grid-cols-1 gap-x-6 sm:rounded-xl sm:border sm:border-line-subtle lg:grid-cols-2">
+      {chapters.map((c, index) => {
         const readable = isReadable(c);
         const title = (
           <div className="min-w-0">
             <p className="truncate text-sm font-medium">
               {chapterLabel(c)}
               {c.title ? (
-                <span className="text-muted-foreground"> — {c.title}</span>
+                <span className="text-muted-foreground"> · {c.title}</span>
               ) : null}
             </p>
             <Meta c={c} />
           </div>
         );
 
-        if (!readable && c.externalUrl) {
-          return (
-            <li key={c.id}>
-              <a
-                href={c.externalUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-between gap-3 px-4 py-3 transition hover:bg-muted"
-              >
-                {title}
-                <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
-                  <span className="rounded-full border border-border px-2 py-0.5">
-                    Official
-                  </span>
-                  <ExternalLink className="h-4 w-4" />
-                </span>
-              </a>
-            </li>
-          );
-        }
-
-        return (
-          <li key={c.id}>
-            <Link
-              href={`/read/${c.id}`}
-              className="flex items-center justify-between gap-3 px-4 py-3 transition hover:bg-muted"
+        const row = !readable && c.externalUrl ? (
+          <li className="border-b border-line-subtle/70">
+            <a
+              href={c.externalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-between gap-3 px-4 py-3 transition hover:bg-muted focus-visible:bg-muted"
             >
               {title}
-              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+              <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+                <span className="rounded-full border border-border px-2 py-0.5">
+                  Official
+                </span>
+                <ExternalLink className="h-4 w-4" aria-hidden="true" />
+              </span>
+            </a>
+          </li>
+        ) : (
+          <li className="border-b border-line-subtle/70">
+            <Link
+              href={`/read/${c.id}`}
+              prefetch={false}
+              className="group flex items-center justify-between gap-3 px-4 py-3 transition hover:bg-muted focus-visible:bg-muted"
+            >
+              {title}
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-content-primary" aria-hidden="true" />
             </Link>
           </li>
+        );
+
+        return (
+          <Fragment key={c.id}>
+            {row}
+            {index === DETAIL_PREVIEW_AFTER_CHAPTERS - 1 &&
+              chapters.length > DETAIL_PREVIEW_AFTER_CHAPTERS && (
+                <li className="border-b border-line-subtle/70 bg-card px-4 py-5 lg:col-span-2">
+                  <InternalAdPreview placement="banner" />
+                </li>
+              )}
+          </Fragment>
         );
       })}
     </ul>

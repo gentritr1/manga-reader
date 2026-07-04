@@ -1,7 +1,6 @@
 import { notFound } from "next/navigation";
 import {
   getChapterInfo,
-  getChapterMangaId,
   getChapterPages,
   getChapters,
   getManga,
@@ -9,6 +8,8 @@ import {
 import { coverUrl, pageImageUrl } from "@/lib/mangadex";
 import { Reader } from "@/components/reader/reader";
 import { ExternalChapterNotice } from "@/components/reader/external-notice";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 
 export const revalidate = 60;
 
@@ -19,18 +20,22 @@ export default async function ReadPage({
 }) {
   const { chapterId } = await params;
 
-  const [info, mangaId] = await Promise.all([
+  const [info, session] = await Promise.all([
     getChapterInfo(chapterId),
-    getChapterMangaId(chapterId),
+    auth(),
   ]);
 
   if (!info) notFound();
+  const mangaId = info.mangaId;
 
-  const [manga, feed] = await Promise.all([
+  // External / licensed chapters have no in-app pages, so skip the pages fetch.
+  const needPages = !(info.externalUrl || info.pages === 0);
+  const [manga, feed, pages] = await Promise.all([
     mangaId ? getManga(mangaId) : Promise.resolve(null),
     mangaId
       ? getChapters(mangaId, { order: "asc", limit: 500 })
       : Promise.resolve({ chapters: [], total: 0 }),
+    needPages ? getChapterPages(chapterId) : Promise.resolve(null),
   ]);
 
   const idx = feed.chapters.findIndex((c) => c.id === chapterId);
@@ -41,10 +46,7 @@ export default async function ReadPage({
   const chapterLabel = info.chapter ? `Chapter ${info.chapter}` : "Oneshot";
   const cover = manga ? coverUrl(manga.id, manga.coverFileName, 256) : null;
 
-  // External / licensed chapters have no in-app pages — show a notice instead.
-  const pages =
-    info.externalUrl || info.pages === 0 ? null : await getChapterPages(chapterId);
-
+  // External / licensed chapters have no in-app pages, so show a notice instead.
   if (!pages || pages.data.length === 0) {
     if (info.externalUrl) {
       return (
@@ -61,13 +63,28 @@ export default async function ReadPage({
     notFound();
   }
 
-  const imageUrls = pages.data.map((_, i) => pageImageUrl(pages, i, false));
+  let recap = null;
+  if (session?.user?.id && mangaId) {
+    const progress = await prisma.readingProgress.findUnique({
+      where: { userId_mangaId: { userId: session.user.id, mangaId } },
+    });
+    if (progress) {
+      const daysSince = (new Date().getTime() - progress.updatedAt.getTime()) / (1000 * 60 * 60 * 24);
+      if (daysSince > 7) {
+        recap = `Welcome back! It's been ${Math.floor(daysSince)} days since you last read ${progress.chapter ? `Chapter ${progress.chapter}` : "a chapter"}. Let's jump back into the action.`;
+      }
+    }
+  }
+
+  const useDataSaver = false;
+  const imageUrls = pages.data.map((_, i) => pageImageUrl(pages, i, useDataSaver));
 
   return (
     <Reader
       key={chapterId}
       chapterId={chapterId}
       imageUrls={imageUrls}
+      useDataSaver={useDataSaver}
       chapterLabel={chapterLabel}
       chapterTitle={info.title ?? null}
       mangaId={mangaId}
@@ -75,6 +92,7 @@ export default async function ReadPage({
       coverUrl={cover}
       prevId={prevId}
       nextId={nextId}
+      recap={recap}
     />
   );
 }

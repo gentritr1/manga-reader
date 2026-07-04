@@ -36,7 +36,7 @@ export function ExternalChapterNotice({
               </Button>
             </a>
           )}
-          <Link href={backHref}>
+          <Link href={backHref} prefetch={false}>
             <Button variant="outline" size="lg">
               <ArrowLeft className="h-4 w-4" /> Back to title
             </Button>
@@ -44,14 +44,14 @@ export function ExternalChapterNotice({
         </div>
         <div className="flex items-center justify-center gap-3 pt-2">
           {prevId && (
-            <Link href={`/read/${prevId}`}>
+            <Link href={`/read/${prevId}`} prefetch={false}>
               <Button variant="ghost" size="sm">
                 <ChevronLeft className="h-4 w-4" /> Previous
               </Button>
             </Link>
           )}
           {nextId && (
-            <Link href={`/read/${nextId}`}>
+            <Link href={`/read/${nextId}`} prefetch={false}>
               <Button variant="ghost" size="sm">
                 Next <ChevronRight className="h-4 w-4" />
               </Button>

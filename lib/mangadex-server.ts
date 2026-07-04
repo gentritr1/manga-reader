@@ -1,6 +1,7 @@
 // Server-only MangaDex fetchers. Calls api.mangadex.org directly with the
 // required User-Agent and Next.js caching. Do NOT import from client components.
 import "server-only";
+import { unstable_cache } from "next/cache";
 import {
   MD_API,
   buildMangaQuery,
@@ -52,7 +53,7 @@ export async function searchManga(params: SearchParams): Promise<SearchResult> {
 
 export async function getManga(id: string): Promise<SimpleManga | null> {
   const json = await mdFetch<{ data?: unknown }>(
-    `/manga/${id}?includes[]=cover_art&includes[]=author&includes[]=artist`,
+    `/manga/${id}?includes[]=cover_art&includes[]=author`,
     3600,
   );
   if (!json?.data) return null;
@@ -82,26 +83,26 @@ export async function getChapters(
   };
 }
 
+export interface ChapterInfo extends SimpleChapter {
+  mangaId: string | null;
+}
+
 export async function getChapterInfo(
   chapterId: string,
-): Promise<SimpleChapter | null> {
-  const json = await mdFetch<{ data?: unknown }>(
+): Promise<ChapterInfo | null> {
+  const json = await mdFetch<{
+    data?: {
+      relationships?: { id: string; type: string }[];
+    };
+  }>(
     `/chapter/${chapterId}?includes[]=scanlation_group&includes[]=manga`,
     600,
   );
   if (!json?.data) return null;
-  return simplifyChapter(json.data as never);
-}
-
-/** Returns the manga id a chapter belongs to. */
-export async function getChapterMangaId(
-  chapterId: string,
-): Promise<string | null> {
-  const json = await mdFetch<{ data?: { relationships?: { id: string; type: string }[] } }>(
-    `/chapter/${chapterId}`,
-    3600,
-  );
-  return json?.data?.relationships?.find((r) => r.type === "manga")?.id ?? null;
+  return {
+    ...simplifyChapter(json.data as never),
+    mangaId: json.data.relationships?.find((r) => r.type === "manga")?.id ?? null,
+  };
 }
 
 export async function getChapterPages(
@@ -109,16 +110,32 @@ export async function getChapterPages(
 ): Promise<ChapterPages | null> {
   // At-home server URLs are short-lived; cache briefly.
   const json = await mdFetch<{
-    baseUrl?: string;
-    chapter?: { hash: string; data: string[]; dataSaver: string[] };
+    baseUrl?: unknown;
+    chapter?: { hash?: unknown; data?: unknown; dataSaver?: unknown };
   }>(`/at-home/server/${chapterId}`, 60);
-  if (!json?.baseUrl || !json.chapter) return null;
+  const chapter = json?.chapter;
+  const data = toStringArray(chapter?.data);
+
+  if (
+    typeof json?.baseUrl !== "string" ||
+    typeof chapter?.hash !== "string" ||
+    data.length === 0
+  ) {
+    return null;
+  }
+
   return {
     baseUrl: json.baseUrl,
-    hash: json.chapter.hash,
-    data: json.chapter.data,
-    dataSaver: json.chapter.dataSaver,
+    hash: chapter.hash,
+    data,
+    dataSaver: toStringArray(chapter.dataSaver),
   };
+}
+
+function toStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
 }
 
 /**
@@ -169,7 +186,7 @@ export async function filterReadableManga(
   return manga.filter((m) => readable.has(m.id)).slice(0, need);
 }
 
-export async function getPopular(limit = 12): Promise<SimpleManga[]> {
+async function getPopularUncached(limit = 12): Promise<SimpleManga[]> {
   // Over-fetch, then drop licensed/external-only titles so the grid stays full.
   const { manga } = await searchManga({
     sort: "popular",
@@ -177,6 +194,12 @@ export async function getPopular(limit = 12): Promise<SimpleManga[]> {
   });
   return filterReadableManga(manga, limit);
 }
+
+export const getPopular = unstable_cache(
+  getPopularUncached,
+  ["mangadex-popular-readable-v1"],
+  { revalidate: 1800 },
+);
 
 export async function getLatest(limit = 24): Promise<SimpleManga[]> {
   const { manga } = await searchManga({ sort: "latest", limit });
@@ -187,7 +210,7 @@ export async function getLatest(limit = 24): Promise<SimpleManga[]> {
  * True "latest updates": newest English chapter releases, de-duplicated to one
  * entry per manga, ordered by actual release time (readableAt desc).
  */
-export async function getLatestUpdates(limit = 24): Promise<SimpleManga[]> {
+async function getLatestUpdatesUncached(limit = 24): Promise<SimpleManga[]> {
   const q = new URLSearchParams();
   q.set("limit", "100"); // over-fetch so we can dedupe to `limit` unique manga
   q.append("translatedLanguage[]", "en");
@@ -221,6 +244,12 @@ export async function getLatestUpdates(limit = 24): Promise<SimpleManga[]> {
     .map((id) => byId.get(id))
     .filter((m): m is SimpleManga => Boolean(m));
 }
+
+export const getLatestUpdates = unstable_cache(
+  getLatestUpdatesUncached,
+  ["mangadex-latest-updates-v1"],
+  { revalidate: 300 },
+);
 
 export async function getMangaByIds(ids: string[]): Promise<SimpleManga[]> {
   if (ids.length === 0) return [];

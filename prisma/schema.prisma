@@ -1,13 +1,22 @@
-// Use Postgres for deployed environments. Set DATABASE_URL to your hosted
-// database connection string, such as Neon, Supabase, or Vercel Postgres.
+// Use Postgres for deployed environments.
+//
+// On Vercel (serverless), every concurrent function instance opens its own DB
+// connection, so DATABASE_URL MUST be a POOLED connection string (Neon pooler,
+// Supabase port 6543 / pgbouncer, or Prisma Accelerate) to avoid exhausting
+// Postgres connection limits under load.
+//
+// Transaction-mode poolers do not support the statements `prisma migrate`
+// needs, so DIRECT_URL points at the UNPOOLED (direct) connection used only for
+// migrations and introspection. See .env.example and docs/vercel-cache-strategy.md.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model User {
@@ -21,6 +30,8 @@ model User {
   sessions      Session[]
   favorites     Favorite[]
   history       ReadingProgress[]
+  readingSessions ReadingSession[]
+  shelves       Shelf[]
   createdAt     DateTime          @default(now())
 }
 
@@ -82,4 +93,45 @@ model ReadingProgress {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, mangaId])
+}
+
+model Shelf {
+  id        String      @id @default(cuid())
+  userId    String
+  name      String
+  colorVibe String      @default("indigo")
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     ShelfItem[]
+
+  @@unique([userId, name])
+  @@index([userId, updatedAt])
+}
+
+model ShelfItem {
+  id        String   @id @default(cuid())
+  shelfId   String
+  mangaId   String
+  title     String
+  coverUrl  String?
+  createdAt DateTime @default(now())
+  shelf     Shelf    @relation(fields: [shelfId], references: [id], onDelete: Cascade)
+
+  @@unique([shelfId, mangaId])
+}
+
+model ReadingSession {
+  id              String   @id @default(cuid())
+  userId          String
+  mangaId         String
+  mangaTitle      String
+  chapterId       String
+  pagesRead       Int
+  durationSeconds Int
+  createdAt       DateTime @default(now())
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, mangaId])
 }
