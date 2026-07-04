@@ -4,9 +4,14 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
+import { motion, useReducedMotion } from "framer-motion";
 import { ArrowRight, LogIn, Play } from "lucide-react";
 import { coverUrl, type SimpleManga } from "@/lib/mangadex";
 import { MangaCoverImage } from "@/components/manga/cover-image";
+import {
+  CoverTransitionElement,
+  CoverTransitionLink,
+} from "@/components/manga/cover-transition";
 import { Section } from "@/components/manga/section";
 import { buttonClassName } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -88,6 +93,7 @@ export function ContinueReading({
   starterManga?: SimpleManga[];
 }) {
   const { status } = useSession();
+  const reduceMotion = useReducedMotion();
   const [localHistory, setLocalHistory] = useState<HistoryItem[]>([]);
   const { data = [], isLoading } = useQuery({
     queryKey: ["history"],
@@ -149,13 +155,18 @@ export function ContinueReading({
           {history.map((item) => {
             const percent = progressPercent(item);
             return (
-              <Link
+              <CoverTransitionLink
+                mangaId={item.mangaId}
                 key={item.mangaId}
                 href={`/read/${item.chapterId}`}
                 prefetch={false}
                 className="group relative flex min-h-28 w-64 shrink-0 gap-3 overflow-hidden rounded-card border border-line-subtle bg-surface-panel p-3 transition hover:-translate-y-0.5 hover:border-brand-primary/45 hover:[box-shadow:var(--elevation-hover)] focus-visible:border-brand-primary"
+                data-yomi-cover-transition-root
               >
-                <div className="relative aspect-[2/3] w-14 shrink-0 overflow-hidden rounded-md bg-surface-muted">
+                <CoverTransitionElement
+                  mangaId={item.mangaId}
+                  className="relative aspect-[2/3] w-14 shrink-0 overflow-hidden rounded-md bg-surface-muted"
+                >
                   {item.coverUrl && (
                     <MangaCoverImage
                       src={item.coverUrl}
@@ -165,7 +176,7 @@ export function ContinueReading({
                       className="object-cover"
                     />
                   )}
-                </div>
+                </CoverTransitionElement>
                 <div className="min-w-0 flex-1">
                   <p className="line-clamp-2 text-sm font-medium">
                     {item.title}
@@ -190,17 +201,30 @@ export function ContinueReading({
                       aria-valuenow={Math.min(item.page, item.totalPages)}
                       className="mt-2 h-1 overflow-hidden rounded-full bg-library-surface"
                     >
-                      <div
-                        className="h-full rounded-full bg-library"
-                        style={{ width: `${percent}%` }}
-                      />
+                      {reduceMotion ? (
+                        <div
+                          className="h-full rounded-full bg-library"
+                          style={{ width: `${percent}%` }}
+                        />
+                      ) : (
+                        <motion.div
+                          className="h-full origin-left rounded-full bg-library"
+                          initial={{ scaleX: 0 }}
+                          animate={{ scaleX: 1 }}
+                          transition={{
+                            duration: 0.4,
+                            ease: [0.22, 1, 0.36, 1],
+                          }}
+                          style={{ width: `${percent}%` }}
+                        />
+                      )}
                     </div>
                   )}
                   <span className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-brand-primary">
                     <Play className="h-3 w-3 fill-current" /> Resume chapter
                   </span>
                 </div>
-              </Link>
+              </CoverTransitionLink>
             );
           })}
         </div>
@@ -254,13 +278,18 @@ function EmptyContinueReading({
           {starters.length > 0 ? (
             <div className="grid gap-3 sm:grid-cols-3">
               {starters.map(({ manga, cover, tag }) => (
-                <Link
+                <CoverTransitionLink
+                  mangaId={manga.id}
                   key={manga.id}
                   href={`/manga/${manga.id}`}
                   prefetch={false}
                   className="group grid grid-cols-[4.25rem_minmax(0,1fr)] gap-3 rounded-lg p-2 transition hover:bg-surface-muted/40 focus-visible:bg-surface-muted/40 focus-visible:ring-2 focus-visible:ring-focus sm:block"
+                  data-yomi-cover-transition-root
                 >
-                  <div className="relative aspect-[2/3] overflow-hidden rounded-md bg-surface-muted sm:w-full">
+                  <CoverTransitionElement
+                    mangaId={manga.id}
+                    className="relative aspect-[2/3] overflow-hidden rounded-md bg-surface-muted sm:w-full"
+                  >
                     {cover ? (
                       <MangaCoverImage
                         src={cover}
@@ -279,7 +308,7 @@ function EmptyContinueReading({
                         Ch. {manga.lastChapter}
                       </Badge>
                     )}
-                  </div>
+                  </CoverTransitionElement>
                   <div className="min-w-0 self-center sm:mt-2">
                     <p className="line-clamp-2 text-sm font-semibold leading-snug">
                       {manga.title}
@@ -288,7 +317,7 @@ function EmptyContinueReading({
                       {tag}
                     </p>
                   </div>
-                </Link>
+                </CoverTransitionLink>
               ))}
             </div>
           ) : (

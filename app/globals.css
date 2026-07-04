@@ -315,6 +315,33 @@ body {
   color: var(--foreground);
 }
 
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 220ms;
+    animation-timing-function: var(--ease-standard);
+  }
+
+  ::view-transition-group(*) {
+    animation-duration: 220ms;
+    animation-timing-function: var(--ease-standard);
+  }
+
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: 220ms;
+    animation-timing-function: var(--ease-standard);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(*),
+  ::view-transition-new(*),
+  ::view-transition-group(*) {
+    animation: none !important;
+  }
+}
+
 a:focus-visible,
 button:focus-visible,
 input:focus-visible,

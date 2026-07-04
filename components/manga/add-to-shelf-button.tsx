@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useTransition } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { ListPlus, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { addToShelf, removeFromShelf } from "@/app/shelves/actions";
@@ -39,6 +40,18 @@ export function AddToShelfButton({
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isPending, startTransition] = useTransition();
+  const reduceMotion = useReducedMotion();
+  const [optimisticShelfIds, setOptimisticShelfIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [settleKey, setSettleKey] = useState(0);
+  const isInShelf =
+    shelves.some((shelf) => shelf.items.some((item) => item.mangaId === mangaId)) ||
+    optimisticShelfIds.size > 0;
+  const settleInitial =
+    settleKey === 0 ? false : reduceMotion ? { opacity: 0.7 } : { scale: 0.92, y: 2 };
+  const settleAnimate =
+    settleKey === 0 ? undefined : reduceMotion ? { opacity: 1 } : { scale: 1, y: 0 };
 
   // Close on click outside
   useEffect(() => {
@@ -52,11 +65,33 @@ export function AddToShelfButton({
   }, [isOpen]);
 
   const toggleShelf = (shelfId: string, isAdded: boolean) => {
+    if (isAdded) {
+      setOptimisticShelfIds((current) => {
+        const next = new Set(current);
+        next.delete(shelfId);
+        return next;
+      });
+    } else {
+      setOptimisticShelfIds((current) => {
+        const next = new Set(current);
+        next.add(shelfId);
+        return next;
+      });
+      setSettleKey((key) => key + 1);
+    }
+
     startTransition(async () => {
-      if (isAdded) {
-        await removeFromShelf(shelfId, mangaId);
-      } else {
-        await addToShelf(shelfId, mangaId, title, coverUrl);
+      const result = isAdded
+        ? await removeFromShelf(shelfId, mangaId)
+        : await addToShelf(shelfId, mangaId, title, coverUrl);
+
+      if (result?.error) {
+        setOptimisticShelfIds((current) => {
+          const next = new Set(current);
+          if (isAdded) next.add(shelfId);
+          else next.delete(shelfId);
+          return next;
+        });
       }
     });
   };
@@ -64,12 +99,29 @@ export function AddToShelfButton({
   return (
     <div className="relative flex-1 min-[480px]:flex-none" ref={containerRef}>
       <Button
-        variant="secondary"
+        variant={isInShelf ? "library" : "secondary"}
         size="lg"
         onClick={() => setIsOpen(!isOpen)}
+        aria-pressed={isInShelf}
         className="w-full"
       >
-        <ListPlus className="h-5 w-5 mr-2" /> Add to Shelf
+        <motion.span
+          key={settleKey}
+          initial={settleInitial}
+          animate={settleAnimate}
+          transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+          className="inline-flex items-center gap-2"
+        >
+          {isInShelf ? (
+            <Check
+              className="h-5 w-5 fill-library text-library"
+              aria-hidden="true"
+            />
+          ) : (
+            <ListPlus className="h-5 w-5" aria-hidden="true" />
+          )}
+          {isInShelf ? "In a shelf" : "Add to Shelf"}
+        </motion.span>
       </Button>
 
       {isOpen && (
@@ -82,7 +134,9 @@ export function AddToShelfButton({
               <p className="text-sm text-content-secondary p-4 text-center">You do not have any shelves yet.</p>
             ) : (
               shelves.map((shelf) => {
-                const isAdded = shelf.items.some((item) => item.mangaId === mangaId);
+                const isAdded =
+                  shelf.items.some((item) => item.mangaId === mangaId) ||
+                  optimisticShelfIds.has(shelf.id);
                 return (
                   <button
                     key={shelf.id}
@@ -95,7 +149,7 @@ export function AddToShelfButton({
                       <span className="text-sm font-medium text-content-primary truncate max-w-[140px]">{shelf.name}</span>
                     </div>
                     {isAdded ? (
-                      <Check className="h-4 w-4 text-brand-primary" />
+                      <Check className="h-4 w-4 fill-library text-brand-primary" />
                     ) : null}
                   </button>
                 );

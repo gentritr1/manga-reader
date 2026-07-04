@@ -6,6 +6,7 @@ import { getChapters, getManga } from "@/lib/mangadex-server";
 import { coverUrl, isReadable } from "@/lib/mangadex";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
 import { MangaCoverImage } from "@/components/manga/cover-image";
+import { CoverTransitionElement } from "@/components/manga/cover-transition";
 import { buttonClassName } from "@/components/ui/button";
 import { FavoriteButton } from "@/components/manga/favorite-button";
 import { Synopsis } from "@/components/manga/synopsis";
@@ -112,7 +113,11 @@ export default async function MangaDetailPage({
 
       <div className="relative mx-auto max-w-5xl px-4 py-8">
         <div className="flex flex-col gap-5 min-[480px]:flex-row min-[480px]:gap-6">
-          <div className="relative aspect-[2/3] w-36 shrink-0 overflow-hidden rounded-cover border border-line-subtle shadow-2xl min-[480px]:w-44">
+          <CoverTransitionElement
+            mangaId={manga.id}
+            active
+            className="relative aspect-[2/3] w-36 shrink-0 overflow-hidden rounded-cover border border-line-subtle shadow-2xl min-[480px]:w-44"
+          >
             {cover ? (
               <MangaCoverImage
                 src={cover}
@@ -128,7 +133,7 @@ export default async function MangaDetailPage({
                 No cover
               </div>
             )}
-          </div>
+          </CoverTransitionElement>
 
           <div className="min-w-0 flex-1 space-y-4">
             <div>

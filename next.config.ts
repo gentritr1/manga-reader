@@ -13,6 +13,9 @@ const allowedDevOrigins = [...new Set([...envDevOrigins, ...lanDevOrigins])];
 
 const nextConfig: NextConfig = {
   ...(allowedDevOrigins.length > 0 ? { allowedDevOrigins } : {}),
+  experimental: {
+    viewTransition: true,
+  },
   turbopack: {
     root: process.cwd(),
   },

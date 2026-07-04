@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import { Heart } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -26,7 +28,15 @@ export function FavoriteButton({
   const router = useRouter();
   const { isFavorite, isAuthenticated, add, remove } = useFavorites();
   const active = isFavorite(mangaId);
+  const reduceMotion = useReducedMotion();
+  const [optimisticSaved, setOptimisticSaved] = useState(false);
+  const [settleKey, setSettleKey] = useState(0);
+  const shownActive = active || optimisticSaved;
   const busy = add.isPending || remove.isPending;
+  const settleInitial =
+    settleKey === 0 ? false : reduceMotion ? { opacity: 0.7 } : { scale: 0.92, y: 2 };
+  const settleAnimate =
+    settleKey === 0 ? undefined : reduceMotion ? { opacity: 1 } : { scale: 1, y: 0 };
 
   const toggle = (e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
@@ -35,38 +45,57 @@ export function FavoriteButton({
       router.push("/login");
       return;
     }
-    if (active) remove.mutate(mangaId);
-    else add.mutate({ mangaId, title, coverUrl });
+    if (shownActive) {
+      setOptimisticSaved(false);
+      remove.mutate(mangaId);
+    } else {
+      setOptimisticSaved(true);
+      setSettleKey((key) => key + 1);
+      add.mutate(
+        { mangaId, title, coverUrl },
+        {
+          onError: () => setOptimisticSaved(false),
+        },
+      );
+    }
   };
 
   if (variant === "full") {
     return (
       <Button
-        variant={active ? "library" : "outline"}
+        variant={shownActive ? "library" : "outline"}
         size={size}
         onClick={toggle}
-        aria-pressed={active}
+        aria-pressed={shownActive}
         aria-label={
-          active ? `Remove ${title} from library` : `Add ${title} to library`
+          shownActive ? `Remove ${title} from library` : `Add ${title} to library`
         }
         disabled={busy}
         className={className}
       >
-        <Heart
-          aria-hidden="true"
-          className={cn("h-4 w-4", active && "fill-current text-library")}
-        />
-        {active ? (
-          <>
-            <span className="sm:hidden">Saved</span>
-            <span className="hidden sm:inline">In your library</span>
-          </>
-        ) : (
-          <>
-            <span className="sm:hidden">Save</span>
-            <span className="hidden sm:inline">Add to library</span>
-          </>
-        )}
+        <motion.span
+          key={settleKey}
+          initial={settleInitial}
+          animate={settleAnimate}
+          transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+          className="inline-flex items-center gap-2"
+        >
+          <Heart
+            aria-hidden="true"
+            className={cn("h-4 w-4", shownActive && "fill-library text-library")}
+          />
+          {shownActive ? (
+            <>
+              <span className="sm:hidden">Saved</span>
+              <span className="hidden sm:inline">In your library</span>
+            </>
+          ) : (
+            <>
+              <span className="sm:hidden">Save</span>
+              <span className="hidden sm:inline">Add to library</span>
+            </>
+          )}
+        </motion.span>
       </Button>
     );
   }
@@ -76,19 +105,26 @@ export function FavoriteButton({
       type="button"
       onClick={toggle}
       aria-label={
-        active ? `Remove ${title} from library` : `Add ${title} to library`
+        shownActive ? `Remove ${title} from library` : `Add ${title} to library`
       }
-      aria-pressed={active}
+      aria-pressed={shownActive}
       disabled={busy}
       className={cn(
         "grid h-11 w-11 place-items-center rounded-full bg-surface-spotlight/70 text-content-inverse [box-shadow:var(--elevation-panel)] backdrop-blur transition hover:bg-surface-spotlight/90 disabled:pointer-events-none disabled:opacity-60",
         className,
       )}
     >
-      <Heart
-        aria-hidden="true"
-        className={cn("h-4 w-4", active && "fill-library text-library")}
-      />
+      <motion.span
+        key={settleKey}
+        initial={settleInitial}
+        animate={settleAnimate}
+        transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+      >
+        <Heart
+          aria-hidden="true"
+          className={cn("h-4 w-4", shownActive && "fill-library text-library")}
+        />
+      </motion.span>
     </button>
   );
 }

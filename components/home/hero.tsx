@@ -2,6 +2,10 @@ import Link from "next/link";
 import { BookOpen, Compass, Sparkles, TrendingUp } from "lucide-react";
 import { coverUrl, type SimpleManga } from "@/lib/mangadex";
 import { MangaCoverImage } from "@/components/manga/cover-image";
+import {
+  CoverTransitionElement,
+  CoverTransitionLink,
+} from "@/components/manga/cover-transition";
 import { buttonClassName } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { FavoriteButton } from "@/components/manga/favorite-button";
@@ -27,7 +31,10 @@ export function Hero({
   ].filter(Boolean);
 
   return (
-    <section className="relative isolate overflow-hidden bg-surface-spotlight text-content-inverse">
+    <section
+      className="relative isolate overflow-hidden bg-surface-spotlight text-content-inverse"
+      data-yomi-cover-transition-root
+    >
       {/* Ambient backdrop: the spotlight's own cover, blurred, so the front
           door feels as immersive as the reader. Scrim preserves text contrast. */}
       {cover && (
@@ -43,7 +50,12 @@ export function Hero({
       )}
       <div className="relative z-10 mx-auto grid w-full max-w-7xl min-w-0 gap-8 px-4 py-8 sm:min-h-[500px] sm:gap-12 sm:px-6 sm:py-12 lg:grid-cols-[minmax(0,1fr)_minmax(340px,420px)] lg:items-center lg:px-8 lg:py-6">
         <div className="yomi-rise-slow relative mx-auto w-[12rem] sm:w-[19rem] lg:order-2 lg:w-[18rem]">
-          <CoverCollage cover={cover} title={manga.title} sides={sides} />
+          <CoverCollage
+            cover={cover}
+            mangaId={manga.id}
+            title={manga.title}
+            sides={sides}
+          />
         </div>
 
         <div className="yomi-rise yomi-delay-1 mx-0 w-full min-w-0 max-w-[22rem] space-y-4 text-center sm:mx-auto sm:max-w-3xl sm:space-y-6 lg:order-1 lg:mx-0 lg:text-left">
@@ -95,7 +107,8 @@ export function Hero({
           </div>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 lg:justify-start pt-2">
-            <Link
+            <CoverTransitionLink
+              mangaId={manga.id}
               href={`/manga/${manga.id}`}
               prefetch={false}
               className={buttonClassName({
@@ -104,7 +117,7 @@ export function Hero({
               })}
             >
               <BookOpen className="h-5 w-5" aria-hidden="true" /> View chapters
-            </Link>
+            </CoverTransitionLink>
             <FavoriteButton
               mangaId={manga.id}
               title={manga.title}
@@ -124,10 +137,12 @@ export function Hero({
 // behind it. Supporting covers are decorative and dimmed so the lead pops.
 function CoverCollage({
   cover,
+  mangaId,
   title,
   sides,
 }: {
   cover: string | null;
+  mangaId: string;
   title: string;
   sides: string[];
 }) {
@@ -147,6 +162,7 @@ function CoverCollage({
       )}
       <CoverFrame
         cover={cover}
+        mangaId={mangaId}
         title={title}
         sizes="(max-width: 640px) 192px, (max-width: 1024px) 304px, 288px"
         priority
@@ -181,19 +197,23 @@ function CollageSide({ cover, className }: { cover: string; className: string })
 
 function CoverFrame({
   cover,
+  mangaId,
   title,
   className,
   sizes,
   priority = false,
 }: {
   cover: string | null;
+  mangaId: string;
   title: string;
   className?: string;
   sizes: string;
   priority?: boolean;
 }) {
   return (
-    <div
+    <CoverTransitionElement
+      mangaId={mangaId}
+      preferred
       className={cn(
         "relative z-10 aspect-[2/3] w-full overflow-hidden rounded-cover border border-line-inverse bg-surface-inverse-tint shadow-[var(--elevation-cover)]",
         className,
@@ -214,6 +234,6 @@ function CoverFrame({
           Cover coming soon
         </div>
       )}
-    </div>
+    </CoverTransitionElement>
   );
 }

@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   ArrowLeft,
   ChevronLeft,
@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { InternalAdPreview } from "@/components/ads/internal-ad-preview";
+import { CoverTransitionElement } from "@/components/manga/cover-transition";
 import { buttonClassName } from "@/components/ui/button";
 import { useFavorites } from "@/lib/use-favorites";
 import {
@@ -249,6 +250,7 @@ function ReaderContent(props: Props) {
   const toggleZenMode = useCallback(() => setZenMode((z) => !z), []);
   // Paged slides: 0 = intro, 1..N = pages, N+1 = end.
   const [slide, setSlide] = useState(0);
+  const [slideDirection, setSlideDirection] = useState<1 | -1>(1);
   const total = imageUrls.length;
   const lastSlide = total + 1;
 
@@ -632,6 +634,7 @@ function ReaderContent(props: Props) {
       recordPageProgress(page);
 
       if (mode === "paged") {
+        setSlideDirection(page >= slide ? 1 : -1);
         setSlide(page);
         return;
       }
@@ -644,11 +647,12 @@ function ReaderContent(props: Props) {
         behavior: prefersReducedMotion ? "auto" : "smooth",
       });
     },
-    [mode, recordPageProgress, total],
+    [mode, recordPageProgress, slide, total],
   );
 
   // Paged navigation + keyboard.
   const next = useCallback(() => {
+    setSlideDirection(1);
     setSlide((s) => {
       if (s < lastSlide) {
         if (s === total) captureChapterEnd();
@@ -659,6 +663,7 @@ function ReaderContent(props: Props) {
     });
   }, [captureChapterEnd, lastSlide, goNextChapter, total]);
   const prev = useCallback(() => {
+    setSlideDirection(-1);
     setSlide((s) => {
       if (s > 0) return s - 1;
       goPrevChapter();
@@ -777,6 +782,7 @@ function ReaderContent(props: Props) {
           slide={slide}
           total={total}
           lastSlide={lastSlide}
+          slideDirection={slideDirection}
           onNext={next}
           onPrev={prev}
           zenMode={zenMode}
@@ -1154,6 +1160,7 @@ function PagedReader({
   imageUrls,
   useDataSaver,
   slide,
+  slideDirection,
   total,
   lastSlide,
   onNext,
@@ -1174,6 +1181,7 @@ function PagedReader({
   onChapterEndVisible,
 }: Props & {
   slide: number;
+  slideDirection: 1 | -1;
   total: number;
   lastSlide: number;
   onNext: () => void;
@@ -1185,10 +1193,101 @@ function PagedReader({
   nextTeaseReady: boolean;
   onChapterEndVisible: () => void;
 }) {
+  const reduceMotion = useReducedMotion();
   const isIntro = slide === 0;
   const isEnd = slide === lastSlide;
   const prevDisabled = isIntro && !prevId;
   const nextDisabled = isEnd && !nextId;
+
+  const slideMotion = reduceMotion
+    ? {
+        initial: { opacity: 0 },
+        animate: { opacity: 1 },
+        exit: { opacity: 0 },
+      }
+    : {
+        initial: { opacity: 0, x: slideDirection > 0 ? 12 : -12 },
+        animate: { opacity: 1, x: 0 },
+        exit: { opacity: 0, x: slideDirection > 0 ? -12 : 12 },
+      };
+  const slideContent = isIntro ? (
+    <div className="w-full max-w-xl space-y-6 text-center">
+      {coverUrl && mangaId && (
+        <CoverTransitionElement
+          mangaId={mangaId}
+          active
+          className="relative mx-auto aspect-[2/3] w-28 overflow-hidden rounded-cover border border-reader-line bg-reader-chrome shadow-2xl sm:w-32"
+        >
+          <img
+            src={coverUrl}
+            alt={`${mangaTitle} cover`}
+            loading="eager"
+            decoding="async"
+            className="h-full w-full object-cover"
+          />
+        </CoverTransitionElement>
+      )}
+      {recap && (
+        <div className="rounded-2xl border border-reader-line bg-reader-chrome/50 p-6 backdrop-blur shadow-2xl mb-8 animate-in fade-in slide-in-from-bottom-4">
+          <p className="text-xs font-semibold uppercase tracking-widest text-reader-muted mb-2">The Story So Far</p>
+          <p className="text-sm leading-relaxed">{recap}</p>
+        </div>
+      )}
+      <h2 className="text-lg font-semibold">{chapterLabel}</h2>
+      {chapterTitle && (
+        <p className="text-sm text-reader-muted">{chapterTitle}</p>
+      )}
+      <button
+        type="button"
+        onClick={onNext}
+        aria-label="Start reading"
+        className={buttonClassName({
+          className: "bg-action-primary text-action-primary-foreground hover:brightness-110",
+        })}
+      >
+        Start reading <ChevronRight className="h-4 w-4" aria-hidden="true" />
+      </button>
+    </div>
+  ) : isEnd ? (
+    <div className="w-full max-w-xl space-y-8 text-center">
+      <ChapterEndMomentumCard
+        chapterLabel={chapterLabel}
+        prevId={prevId}
+        nextId={nextId}
+        mangaId={mangaId}
+        mangaTitle={mangaTitle}
+        coverUrl={coverUrl}
+        stats={chapterEndStats}
+        todayRhythmDays={chapterEndRhythmDays}
+        nextTeaseReady={nextTeaseReady}
+        onVisible={onChapterEndVisible}
+      />
+      <InternalAdPreview placement="reader" />
+    </div>
+  ) : (
+    <>
+      {/* Dynamic Ambiance Glow */}
+      <div className="absolute inset-0 -z-10 overflow-hidden bg-reader-canvas pointer-events-none transition-opacity duration-700" style={{ opacity: zenMode ? 1 : 0.3 }}>
+        <img
+          src={imageUrls[slide - 1]}
+          alt=""
+          className="h-full w-full object-cover blur-[80px]"
+        />
+      </div>
+      <ReaderPageImage
+        key={imageUrls[slide - 1]}
+        src={imageUrls[slide - 1]}
+        fallbackSrc={chapterPageProxyUrl(chapterId, slide, useDataSaver)}
+        alt={`Page ${slide}`}
+        pageNumber={slide}
+        eager
+        imageClassName={cn(
+          "w-auto max-w-full object-contain drop-shadow-2xl transition-all duration-300",
+          zenMode ? "max-h-screen" : "max-h-[calc(100vh-7rem)]",
+        )}
+      />
+    </>
+  );
 
   useEffect(() => {
     if (isEnd) onChapterEndVisible();
@@ -1197,69 +1296,18 @@ function PagedReader({
   return (
     <div className="relative flex min-h-[calc(100vh-3.5rem)] flex-col">
       <div className="flex flex-1 items-center justify-center p-4">
-        {isIntro ? (
-          <div className="w-full max-w-xl space-y-6 text-center">
-            {recap && (
-              <div className="rounded-2xl border border-reader-line bg-reader-chrome/50 p-6 backdrop-blur shadow-2xl mb-8 animate-in fade-in slide-in-from-bottom-4">
-                <p className="text-xs font-semibold uppercase tracking-widest text-reader-muted mb-2">The Story So Far</p>
-                <p className="text-sm leading-relaxed">{recap}</p>
-              </div>
-            )}
-            <h2 className="text-lg font-semibold">{chapterLabel}</h2>
-            {chapterTitle && (
-              <p className="text-sm text-reader-muted">{chapterTitle}</p>
-            )}
-            <button
-              type="button"
-              onClick={onNext}
-              aria-label="Start reading"
-              className={buttonClassName({
-                className: "bg-action-primary text-action-primary-foreground hover:brightness-110",
-              })}
-            >
-              Start reading <ChevronRight className="h-4 w-4" aria-hidden="true" />
-            </button>
-          </div>
-        ) : isEnd ? (
-          <div className="w-full max-w-xl space-y-8 text-center">
-            <ChapterEndMomentumCard
-              chapterLabel={chapterLabel}
-              prevId={prevId}
-              nextId={nextId}
-              mangaId={mangaId}
-              mangaTitle={mangaTitle}
-              coverUrl={coverUrl}
-              stats={chapterEndStats}
-              todayRhythmDays={chapterEndRhythmDays}
-              nextTeaseReady={nextTeaseReady}
-              onVisible={onChapterEndVisible}
-            />
-            <InternalAdPreview placement="reader" />
-          </div>
-        ) : (
-          <>
-            {/* Dynamic Ambiance Glow */}
-            <div className="absolute inset-0 -z-10 overflow-hidden bg-reader-canvas pointer-events-none transition-opacity duration-700" style={{ opacity: zenMode ? 1 : 0.3 }}>
-              <img
-                src={imageUrls[slide - 1]}
-                alt=""
-                className="h-full w-full object-cover blur-[80px]"
-              />
-            </div>
-            <ReaderPageImage
-              key={imageUrls[slide - 1]}
-              src={imageUrls[slide - 1]}
-              fallbackSrc={chapterPageProxyUrl(chapterId, slide, useDataSaver)}
-              alt={`Page ${slide}`}
-              pageNumber={slide}
-              eager
-              imageClassName={cn(
-                "w-auto max-w-full object-contain drop-shadow-2xl transition-all duration-300",
-                zenMode ? "max-h-screen" : "max-h-[calc(100vh-7rem)]",
-              )}
-            />
-          </>
-        )}
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={slide}
+            initial={slideMotion.initial}
+            animate={slideMotion.animate}
+            exit={slideMotion.exit}
+            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+            className="relative flex w-full justify-center"
+          >
+            {slideContent}
+          </motion.div>
+        </AnimatePresence>
       </div>
 
       {/* Click zones */}
