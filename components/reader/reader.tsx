@@ -4,16 +4,23 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { motion, useReducedMotion } from "framer-motion";
 import {
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
   Columns2,
+  Heart,
   Rows3,
   X,
 } from "lucide-react";
 import { InternalAdPreview } from "@/components/ads/internal-ad-preview";
 import { buttonClassName } from "@/components/ui/button";
+import { useFavorites } from "@/lib/use-favorites";
+import {
+  useMarkReadingRhythmReadToday,
+  useReadingRhythm,
+} from "@/lib/use-reading-rhythm";
 import { cn } from "@/lib/utils";
 
 type Mode = "vertical" | "paged";
@@ -29,6 +36,12 @@ interface ReaderSessionState {
   pagesSeen: Set<number>;
   maxPagedPage: number;
   flushed: boolean;
+  endSnapshot: ReaderSessionSnapshot | null;
+}
+
+interface ReaderSessionSnapshot {
+  pagesRead: number;
+  durationSeconds: number;
 }
 
 interface StoredChapterProgress {
@@ -87,6 +100,40 @@ function allowsSpeculativeImagePreload(): boolean {
     !connection?.saveData &&
     !["slow-2g", "2g"].includes(connection?.effectiveType ?? "")
   );
+}
+
+function connectionSaveDataEnabled(): boolean {
+  if (typeof navigator === "undefined") return false;
+  const connection = (
+    navigator as Navigator & {
+      connection?: { saveData?: boolean };
+    }
+  ).connection;
+  return Boolean(connection?.saveData);
+}
+
+function getReaderSessionSnapshot(
+  readingSession: ReaderSessionState,
+  totalPages: number,
+): ReaderSessionSnapshot | null {
+  const durationSeconds = Math.round((Date.now() - readingSession.startedAt) / 1000);
+  const pagesRead = Math.max(
+    Math.min(readingSession.maxPagedPage, totalPages),
+    Math.min(readingSession.pagesSeen.size, totalPages),
+  );
+
+  if (pagesRead <= 0) return null;
+  return { pagesRead, durationSeconds };
+}
+
+function formatMomentumDuration(seconds: number) {
+  return `${Math.max(1, Math.round(seconds / 60))} min`;
+}
+
+function formatMomentumStats(stats: ReaderSessionSnapshot | null) {
+  if (!stats) return "Chapter complete";
+  const pagesLabel = stats.pagesRead === 1 ? "1 page" : `${stats.pagesRead} pages`;
+  return `${pagesLabel} · ${formatMomentumDuration(stats.durationSeconds)}`;
 }
 
 function progressStorageKey(chapterId: string) {
@@ -211,6 +258,14 @@ function ReaderContent(props: Props) {
   // One-time hint so the tap-to-hide-controls gesture is discoverable.
   const [showHint, setShowHint] = useState(false);
   const [resumePromptPage, setResumePromptPage] = useState<number | null>(null);
+  const [chapterEndStats, setChapterEndStats] =
+    useState<ReaderSessionSnapshot | null>(null);
+  const [chapterEndRhythmDays, setChapterEndRhythmDays] = useState<
+    number | null
+  >(null);
+  const [nextTeaseReady, setNextTeaseReady] = useState(false);
+  const rhythmQuery = useReadingRhythm();
+  const markReadingRhythmReadToday = useMarkReadingRhythmReadToday();
   const latestProgressPageRef = useRef(0);
   const lastProgressFlushRef = useRef(0);
 
@@ -253,6 +308,7 @@ function ReaderContent(props: Props) {
     pagesSeen: new Set<number>(),
     maxPagedPage: 0,
     flushed: true,
+    endSnapshot: null,
   });
 
   const buildProgressMetadata = useCallback((): StoredProgressMetadata | null => {
@@ -331,6 +387,7 @@ function ReaderContent(props: Props) {
       pagesSeen: new Set<number>(),
       maxPagedPage: 0,
       flushed: false,
+      endSnapshot: null,
     };
   }, [props.chapterId]);
 
@@ -422,19 +479,15 @@ function ReaderContent(props: Props) {
     [recordPageProgress, total],
   );
 
-  const flushReadingSession = useCallback(() => {
+  const flushReadingSession = useCallback((snapshotOverride?: ReaderSessionSnapshot) => {
     const readingSession = sessionRef.current;
     if (!mangaId || readingSession.flushed || readingSession.startedAt === 0) return;
 
-    const durationSeconds = Math.round((Date.now() - readingSession.startedAt) / 1000);
-    if (durationSeconds < 3) return;
-
-    const pagesRead = Math.max(
-      Math.min(readingSession.maxPagedPage, total),
-      Math.min(readingSession.pagesSeen.size, total),
-    );
-
-    if (pagesRead <= 0) return;
+    const snapshot =
+      snapshotOverride ??
+      readingSession.endSnapshot ??
+      getReaderSessionSnapshot(readingSession, total);
+    if (!snapshot || snapshot.durationSeconds < 3) return;
 
     readingSession.flushed = true;
 
@@ -446,11 +499,45 @@ function ReaderContent(props: Props) {
         mangaId,
         mangaTitle: props.mangaTitle,
         chapterId: props.chapterId,
-        pagesRead,
-        durationSeconds,
+        pagesRead: snapshot.pagesRead,
+        durationSeconds: snapshot.durationSeconds,
       }),
-    }).catch(() => {});
-  }, [mangaId, props.mangaTitle, props.chapterId, total]);
+    })
+      .then((response) => {
+        if (response.ok) markReadingRhythmReadToday();
+      })
+      .catch(() => {});
+  }, [
+    mangaId,
+    markReadingRhythmReadToday,
+    props.mangaTitle,
+    props.chapterId,
+    total,
+  ]);
+
+  const captureChapterEnd = useCallback(() => {
+    const readingSession = sessionRef.current;
+    const snapshot =
+      readingSession.endSnapshot ??
+      getReaderSessionSnapshot(readingSession, total);
+    if (!snapshot) return;
+
+    readingSession.endSnapshot = snapshot;
+    setChapterEndStats(snapshot);
+
+    const rhythm = rhythmQuery.data;
+    if (!rhythm?.readToday && rhythm?.tickedTodayRhythmDays) {
+      setChapterEndRhythmDays(rhythm.tickedTodayRhythmDays);
+    }
+
+    flushReadingSession(snapshot);
+  }, [flushReadingSession, rhythmQuery.data, total]);
+
+  useEffect(() => {
+    if (mode === "vertical" && currentPage === total) {
+      captureChapterEnd();
+    }
+  }, [captureChapterEnd, currentPage, mode, total]);
 
   useEffect(() => {
     const onPageHide = () => flushReadingSession();
@@ -473,9 +560,14 @@ function ReaderContent(props: Props) {
     mode === "paged" ? slide >= Math.ceil(total / 2) : verticalPreloadReady;
 
   useEffect(() => {
-    if (!shouldPreloadNext || !nextId) return;
+    if (!shouldPreloadNext || !nextId || !allowsSpeculativeImagePreload()) {
+      return;
+    }
     [1, 2, 3, 4, 5].forEach((pageNumber) => {
       const img = new Image();
+      if (pageNumber === 1) {
+        img.onload = () => setNextTeaseReady(true);
+      }
       img.src = `/chapter-page/${nextId}/${pageNumber}`;
     });
   }, [shouldPreloadNext, nextId]);
@@ -558,11 +650,14 @@ function ReaderContent(props: Props) {
   // Paged navigation + keyboard.
   const next = useCallback(() => {
     setSlide((s) => {
-      if (s < lastSlide) return s + 1;
+      if (s < lastSlide) {
+        if (s === total) captureChapterEnd();
+        return s + 1;
+      }
       goNextChapter();
       return s;
     });
-  }, [lastSlide, goNextChapter]);
+  }, [captureChapterEnd, lastSlide, goNextChapter, total]);
   const prev = useCallback(() => {
     setSlide((s) => {
       if (s > 0) return s - 1;
@@ -671,6 +766,10 @@ function ReaderContent(props: Props) {
           {...props}
           toggleZenMode={toggleZenMode}
           onPageVisible={markVerticalPageVisible}
+          chapterEndStats={chapterEndStats}
+          chapterEndRhythmDays={chapterEndRhythmDays}
+          nextTeaseReady={nextTeaseReady}
+          onChapterEndVisible={captureChapterEnd}
         />
       ) : (
         <PagedReader
@@ -682,6 +781,10 @@ function ReaderContent(props: Props) {
           onPrev={prev}
           zenMode={zenMode}
           toggleZenMode={toggleZenMode}
+          chapterEndStats={chapterEndStats}
+          chapterEndRhythmDays={chapterEndRhythmDays}
+          nextTeaseReady={nextTeaseReady}
+          onChapterEndVisible={captureChapterEnd}
         />
       )}
 
@@ -722,37 +825,172 @@ function ReaderContent(props: Props) {
   );
 }
 
-function ChapterNav({ prevId, nextId }: { prevId: string | null; nextId: string | null }) {
+function EndLibraryAction({
+  mangaId,
+  mangaTitle,
+  coverUrl,
+}: {
+  mangaId: string | null;
+  mangaTitle: string;
+  coverUrl: string | null;
+}) {
   const router = useRouter();
+  const { isFavorite, isAuthenticated, isLoading, add } = useFavorites();
+
+  if (!mangaId || isFavorite(mangaId) || (isAuthenticated && isLoading)) {
+    return null;
+  }
 
   return (
-    <div className="flex flex-col items-center gap-4">
-      {nextId ? (
-        <button
-          type="button"
-          onClick={() => router.push(`/read/${nextId}`)}
-          className={buttonClassName({
-            size: "lg",
-            className: "w-full max-w-xs bg-action-primary text-action-primary-foreground hover:brightness-110",
-          })}
-        >
-          Next chapter <ChevronRight className="h-5 w-5" aria-hidden="true" />
-        </button>
-      ) : (
-        <p className="text-sm font-medium text-reader-muted">
-          You&rsquo;re all caught up.
+    <button
+      type="button"
+      disabled={add.isPending}
+      onClick={() => {
+        if (!isAuthenticated) {
+          router.push("/login");
+          return;
+        }
+        add.mutate({ mangaId, title: mangaTitle, coverUrl });
+      }}
+      className={buttonClassName({
+        variant: "library",
+        size: "lg",
+        className: "w-full sm:w-auto",
+      })}
+    >
+      <Heart className="h-5 w-5" aria-hidden="true" />
+      Add to library
+    </button>
+  );
+}
+
+function ChapterEndMomentumCard({
+  chapterLabel,
+  prevId,
+  nextId,
+  mangaId,
+  mangaTitle,
+  coverUrl,
+  stats,
+  todayRhythmDays,
+  nextTeaseReady,
+  onVisible,
+}: {
+  chapterLabel: string;
+  prevId: string | null;
+  nextId: string | null;
+  mangaId: string | null;
+  mangaTitle: string;
+  coverUrl: string | null;
+  stats: ReaderSessionSnapshot | null;
+  todayRhythmDays: number | null;
+  nextTeaseReady: boolean;
+  onVisible: () => void;
+}) {
+  const router = useRouter();
+  const prefersReducedMotion = useReducedMotion();
+  const [failedTeaseUrl, setFailedTeaseUrl] = useState<string | null>(null);
+  const [saveDataEnabled] = useState(() => connectionSaveDataEnabled());
+  const backHref = mangaId ? `/manga/${mangaId}` : "/";
+  const teaseUrl = nextId ? `/chapter-page/${nextId}/1` : null;
+  const allowTease =
+    Boolean(teaseUrl) &&
+    nextTeaseReady &&
+    !saveDataEnabled &&
+    failedTeaseUrl !== teaseUrl;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: prefersReducedMotion ? 0 : 8 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.35 }}
+      transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+      onViewportEnter={onVisible}
+      className="mx-auto w-full max-w-xl overflow-hidden rounded-2xl border border-reader-line bg-reader-chrome p-5 text-center shadow-2xl backdrop-blur sm:p-6"
+    >
+      <p className="text-sm font-medium text-reader-muted">
+        {formatMomentumStats(stats)}
+      </p>
+      <h2 className="mt-2 text-lg font-semibold text-reader-foreground">
+        End of {chapterLabel}
+      </h2>
+
+      {todayRhythmDays && (
+        <p className="mx-auto mt-3 flex w-fit items-center gap-2 rounded-full border border-library-line bg-library-surface px-3 py-1.5 text-sm font-medium text-reader-foreground">
+          <span
+            className="h-2 w-2 rounded-full bg-library shadow-[0_0_14px_var(--library)]"
+            aria-hidden="true"
+          />
+          That&apos;s {todayRhythmDays}{" "}
+          {todayRhythmDays === 1 ? "day" : "days"} in a row.
         </p>
       )}
+
+      {allowTease && teaseUrl && (
+        <div className="relative mx-auto mt-5 max-h-40 w-full max-w-56 overflow-hidden rounded-2xl border border-reader-line bg-reader-canvas">
+          <img
+            src={teaseUrl}
+            alt=""
+            loading="eager"
+            decoding="async"
+            onError={() => setFailedTeaseUrl(teaseUrl)}
+            className="max-h-40 w-full object-cover object-top opacity-90"
+          />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-reader-chrome to-transparent"
+          />
+        </div>
+      )}
+
+      <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
+        {nextId ? (
+          <button
+            type="button"
+            onClick={() => router.push(`/read/${nextId}`)}
+            className={buttonClassName({
+              size: "lg",
+              className:
+                "w-full bg-action-primary text-action-primary-foreground hover:brightness-110 sm:w-auto",
+            })}
+          >
+            Next chapter <ChevronRight className="h-5 w-5" aria-hidden="true" />
+          </button>
+        ) : (
+          <>
+            <p className="w-full text-sm font-medium text-reader-muted sm:w-auto">
+              You&rsquo;re all caught up.
+            </p>
+            <EndLibraryAction
+              mangaId={mangaId}
+              mangaTitle={mangaTitle}
+              coverUrl={coverUrl}
+            />
+            <Link
+              href={backHref}
+              className={buttonClassName({
+                variant: "outline",
+                size: "lg",
+                className:
+                  "w-full border-reader-line text-reader-foreground hover:bg-reader-control-hover sm:w-auto",
+              })}
+            >
+              Back to manga
+            </Link>
+          </>
+        )}
+      </div>
+
       {prevId && (
         <button
           type="button"
           onClick={() => router.push(`/read/${prevId}`)}
-          className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-reader-muted transition hover:text-reader-foreground focus-visible:ring-reader-focus"
+          className="mt-4 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-reader-muted transition hover:text-reader-foreground focus-visible:ring-reader-focus"
         >
           <ChevronLeft className="h-4 w-4" aria-hidden="true" /> Previous chapter
         </button>
       )}
-    </div>
+    </motion.div>
   );
 }
 
@@ -760,6 +998,10 @@ function VerticalReader(
   props: Props & {
     toggleZenMode: () => void;
     onPageVisible: (pageNumber: number) => void;
+    chapterEndStats: ReaderSessionSnapshot | null;
+    chapterEndRhythmDays: number | null;
+    nextTeaseReady: boolean;
+    onChapterEndVisible: () => void;
   },
 ) {
   return (
@@ -784,8 +1026,18 @@ function VerticalReader(
       </div>
 
       <div className="space-y-8 px-4 py-10">
-        <p className="text-center text-sm text-reader-muted">End of {props.chapterLabel}</p>
-        <ChapterNav prevId={props.prevId} nextId={props.nextId} />
+        <ChapterEndMomentumCard
+          chapterLabel={props.chapterLabel}
+          prevId={props.prevId}
+          nextId={props.nextId}
+          mangaId={props.mangaId}
+          mangaTitle={props.mangaTitle}
+          coverUrl={props.coverUrl}
+          stats={props.chapterEndStats}
+          todayRhythmDays={props.chapterEndRhythmDays}
+          nextTeaseReady={props.nextTeaseReady}
+          onVisible={props.onChapterEndVisible}
+        />
         <InternalAdPreview placement="reader" />
       </div>
     </div>
@@ -908,11 +1160,18 @@ function PagedReader({
   onPrev,
   prevId,
   nextId,
+  mangaId,
+  mangaTitle,
+  coverUrl,
   chapterLabel,
   chapterTitle,
   zenMode,
   toggleZenMode,
   recap,
+  chapterEndStats,
+  chapterEndRhythmDays,
+  nextTeaseReady,
+  onChapterEndVisible,
 }: Props & {
   slide: number;
   total: number;
@@ -921,11 +1180,19 @@ function PagedReader({
   onPrev: () => void;
   zenMode: boolean;
   toggleZenMode: () => void;
+  chapterEndStats: ReaderSessionSnapshot | null;
+  chapterEndRhythmDays: number | null;
+  nextTeaseReady: boolean;
+  onChapterEndVisible: () => void;
 }) {
   const isIntro = slide === 0;
   const isEnd = slide === lastSlide;
   const prevDisabled = isIntro && !prevId;
   const nextDisabled = isEnd && !nextId;
+
+  useEffect(() => {
+    if (isEnd) onChapterEndVisible();
+  }, [isEnd, onChapterEndVisible]);
 
   return (
     <div className="relative flex min-h-[calc(100vh-3.5rem)] flex-col">
@@ -955,8 +1222,18 @@ function PagedReader({
           </div>
         ) : isEnd ? (
           <div className="w-full max-w-xl space-y-8 text-center">
-            <p className="text-sm text-reader-muted">End of {chapterLabel}</p>
-            <ChapterNav prevId={prevId} nextId={nextId} />
+            <ChapterEndMomentumCard
+              chapterLabel={chapterLabel}
+              prevId={prevId}
+              nextId={nextId}
+              mangaId={mangaId}
+              mangaTitle={mangaTitle}
+              coverUrl={coverUrl}
+              stats={chapterEndStats}
+              todayRhythmDays={chapterEndRhythmDays}
+              nextTeaseReady={nextTeaseReady}
+              onVisible={onChapterEndVisible}
+            />
             <InternalAdPreview placement="reader" />
           </div>
         ) : (

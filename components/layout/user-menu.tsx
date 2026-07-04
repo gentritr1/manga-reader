@@ -12,12 +12,15 @@ import {
 } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { buttonClassName } from "@/components/ui/button";
+import { useReadingRhythm } from "@/lib/use-reading-rhythm";
 
 export function UserMenu() {
   const { data: session, status } = useSession();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const menuId = useId();
+  const rhythmQuery = useReadingRhythm({ enabled: status === "authenticated" });
+  const rhythm = rhythmQuery.data;
 
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
@@ -65,17 +68,23 @@ export function UserMenu() {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex h-11 w-11 items-center justify-center rounded-full bg-accent text-sm font-semibold text-accent-foreground"
+        className="relative flex h-11 w-11 items-center justify-center rounded-full bg-accent text-sm font-semibold text-accent-foreground focus-visible:ring-2 focus-visible:ring-focus"
         aria-label="Account menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
       >
         {initial}
+        {rhythm?.readToday && (
+          <span
+            className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full border-2 border-card bg-library shadow-[0_0_14px_var(--library)]"
+            aria-hidden="true"
+          />
+        )}
       </button>
       {open && (
         <div
           id={menuId}
-          className="absolute right-0 z-50 mt-2 w-52 overflow-hidden rounded-xl border border-border bg-card shadow-lg"
+          className="absolute right-0 z-50 mt-2 w-60 overflow-hidden rounded-xl border border-border bg-card shadow-lg"
         >
           <div className="border-b border-border px-4 py-3">
             <p className="truncate text-sm font-medium">
@@ -84,6 +93,20 @@ export function UserMenu() {
             <p className="truncate text-xs text-muted-foreground">
               {session.user.email}
             </p>
+            {rhythm && rhythm.rhythmDays > 0 && (
+              <div className="mt-3 flex items-center gap-2 rounded-lg border border-library-line bg-library-surface px-2.5 py-2 text-xs font-semibold text-library-foreground">
+                <span
+                  className="h-2 w-2 rounded-full bg-library shadow-[0_0_12px_var(--library)]"
+                  aria-hidden="true"
+                />
+                <span>{rhythm.rhythmDays}-day rhythm</span>
+                {rhythm.readToday && (
+                  <span className="ml-auto text-discovery-foreground">
+                    Read today
+                  </span>
+                )}
+              </div>
+            )}
           </div>
           <Link
             href="/favorites"

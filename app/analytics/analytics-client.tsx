@@ -4,6 +4,7 @@ import { useRef } from "react";
 import { toPng } from "html-to-image";
 import { Download, TrendingUp, BookOpen, Clock, Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useReadingRhythm } from "@/lib/use-reading-rhythm";
 
 interface Props {
   totalPages: number;
@@ -15,6 +16,8 @@ interface Props {
 
 export function AnalyticsClient({ totalPages, formattedTime, averageSpeed, topManga, name }: Props) {
   const cardRef = useRef<HTMLDivElement>(null);
+  const rhythmQuery = useReadingRhythm();
+  const rhythm = rhythmQuery.data;
 
   const handleExport = async () => {
     if (!cardRef.current) return;
@@ -38,7 +41,7 @@ export function AnalyticsClient({ totalPages, formattedTime, averageSpeed, topMa
         ref={cardRef} 
         className="relative max-w-2xl overflow-hidden rounded-card border border-line-shelf bg-surface-shelf p-6 shadow-[var(--elevation-shelf)] sm:p-8"
       >
-        <div className="mb-10 flex items-center justify-between gap-4">
+        <div className="mb-6 flex items-center justify-between gap-4">
           <div>
             <h2 className="text-2xl font-black tracking-tight text-content-primary">Chapter Pulse</h2>
             <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-content-secondary">{`${name}'s reading recap`}</p>
@@ -47,6 +50,28 @@ export function AnalyticsClient({ totalPages, formattedTime, averageSpeed, topMa
             <Activity className="h-5 w-5" aria-hidden="true" />
           </div>
         </div>
+
+        {rhythm && rhythm.rhythmDays > 0 && (
+          <div className="mb-10 flex items-center justify-between gap-4 rounded-card border border-library-line bg-library-surface px-4 py-3">
+            <div className="flex items-center gap-3">
+              <span
+                className="h-2.5 w-2.5 rounded-full bg-library shadow-[0_0_14px_var(--library)]"
+                aria-hidden="true"
+              />
+              <div>
+                <p className="text-sm font-black text-content-primary">
+                  {rhythm.rhythmDays}-day rhythm
+                </p>
+                <p className="text-xs font-semibold text-content-secondary">
+                  {rhythm.readToday ? "Read today" : "Ready for today's chapter"}
+                </p>
+              </div>
+            </div>
+            <span className="rounded-full border border-discovery-line bg-discovery-surface px-3 py-1 text-xs font-bold text-discovery-foreground">
+              Chapter Pulse
+            </span>
+          </div>
+        )}
 
         <div className="mb-10 grid grid-cols-2 gap-4">
           <div className="space-y-2">
@@ -97,7 +122,12 @@ export function AnalyticsClient({ totalPages, formattedTime, averageSpeed, topMa
         </div>
       </div>
 
-      <Button onClick={handleExport} size="lg" className="h-12 px-8 font-bold">
+      <Button
+        onClick={handleExport}
+        size="lg"
+        disabled={rhythmQuery.isLoading}
+        className="h-12 px-8 font-bold"
+      >
         <Download className="h-5 w-5 mr-2" />
         Export recap
       </Button>
