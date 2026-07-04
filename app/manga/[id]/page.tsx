@@ -14,6 +14,8 @@ import { ChapterList } from "@/components/manga/chapter-list";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { AddToShelfButton } from "@/components/manga/add-to-shelf-button";
+import { SeriesTintScope } from "@/components/manga/series-tint-scope";
+import { SeriesTintCoverImage } from "@/components/manga/series-tint-cover-image";
 
 export const revalidate = 900;
 
@@ -98,106 +100,117 @@ export default async function MangaDetailPage({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      {/* Backdrop */}
-      <div className="absolute inset-x-0 top-0 h-72 overflow-hidden">
-        {cover && (
-          <MangaCoverImage
-            src={cover}
-            alt=""
-            fill
-            className="object-cover opacity-20 blur-2xl"
+      <SeriesTintScope mangaId={manga.id} className="relative overflow-hidden">
+        <div className="absolute inset-x-0 top-0 h-72 overflow-hidden">
+          {cover && (
+            <MangaCoverImage
+              src={cover}
+              alt=""
+              fill
+              className="object-cover opacity-20 blur-2xl"
+            />
+          )}
+          <div
+            aria-hidden="true"
+            data-yomi-series-tint-consumer="detail-glow"
+            className="absolute left-1/2 top-8 h-56 w-[min(48rem,92vw)] -translate-x-1/2 rounded-full opacity-25 blur-3xl [background:var(--series-tint)] dark:opacity-30"
           />
-        )}
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-background" />
-      </div>
+          <div className="absolute inset-0 bg-gradient-to-b from-transparent to-background" />
+        </div>
 
-      <div className="relative mx-auto max-w-5xl px-4 py-8">
-        <div className="flex flex-col gap-5 min-[480px]:flex-row min-[480px]:gap-6">
-          <CoverTransitionElement
-            mangaId={manga.id}
-            active
-            className="relative aspect-[2/3] w-36 shrink-0 overflow-hidden rounded-cover border border-line-subtle shadow-2xl min-[480px]:w-44"
-          >
-            {cover ? (
-              <MangaCoverImage
-                src={cover}
-                alt={manga.title}
-                fill
-                loading="eager"
-                fetchPriority="high"
-                sizes="(max-width: 480px) 144px, 176px"
-                className="object-cover"
-              />
-            ) : (
-              <div className="grid h-full place-items-center text-xs text-muted-foreground">
-                No cover
+        <div className="relative mx-auto max-w-5xl px-4 pb-6 pt-8">
+          <div className="flex flex-col gap-5 min-[480px]:flex-row min-[480px]:gap-6">
+            <CoverTransitionElement
+              mangaId={manga.id}
+              active
+              className="relative aspect-[2/3] w-36 shrink-0 overflow-hidden rounded-cover border border-line-subtle shadow-2xl min-[480px]:w-44"
+            >
+              {cover ? (
+                <SeriesTintCoverImage
+                  mangaId={manga.id}
+                  src={cover}
+                  alt={manga.title}
+                  fill
+                  loading="eager"
+                  fetchPriority="high"
+                  sizes="(max-width: 480px) 144px, 176px"
+                  className="object-cover"
+                />
+              ) : (
+                <div className="grid h-full place-items-center text-xs text-muted-foreground">
+                  No cover
+                </div>
+              )}
+            </CoverTransitionElement>
+
+            <div className="min-w-0 flex-1 space-y-4">
+              <div>
+                <h1 className="text-xl font-extrabold tracking-tight min-[480px]:text-2xl sm:text-3xl">
+                  {manga.title}
+                </h1>
+                {manga.author && (
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {manga.author}
+                  </p>
+                )}
               </div>
-            )}
-          </CoverTransitionElement>
 
-          <div className="min-w-0 flex-1 space-y-4">
-            <div>
-              <h1 className="text-xl font-extrabold tracking-tight min-[480px]:text-2xl sm:text-3xl">
-                {manga.title}
-              </h1>
-              {manga.author && (
-                <p className="mt-1 text-sm text-muted-foreground">{manga.author}</p>
-              )}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-muted-foreground">
-              {[
-                manga.status ? (
-                  <span key="status" className="capitalize text-foreground">
-                    {manga.status}
+              <div className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-muted-foreground">
+                {[
+                  manga.status ? (
+                    <span key="status" className="capitalize text-foreground">
+                      {manga.status}
+                    </span>
+                  ) : null,
+                  manga.year ? <span key="year">{manga.year}</span> : null,
+                  ...manga.tags.slice(0, 5),
+                ].filter(Boolean).map((item, i, arr) => (
+                  <span key={i}>
+                    {item}
+                    {i < arr.length - 1 && (
+                      <span className="ml-1.5 opacity-50">&middot;</span>
+                    )}
                   </span>
-                ) : null,
-                manga.year ? <span key="year">{manga.year}</span> : null,
-                ...manga.tags.slice(0, 5),
-              ].filter(Boolean).map((item, i, arr) => (
-                <span key={i}>
-                  {item}
-                  {i < arr.length - 1 && (
-                    <span className="ml-1.5 opacity-50">&middot;</span>
-                  )}
-                </span>
-              ))}
-            </div>
+                ))}
+              </div>
 
-            <div className="flex flex-wrap gap-2">
-              {firstChapter && (
-                <Link
-                  href={`/read/${firstChapter.id}`}
-                  prefetch={false}
-                  className={buttonClassName({
-                    size: "lg",
-                    className: "flex-1 min-[480px]:flex-none",
-                  })}
-                >
-                  <BookOpen className="h-5 w-5" /> Start reading
-                </Link>
-              )}
-              {session?.user?.id && (
-                <AddToShelfButton
-                  shelves={shelves}
+              <div className="flex flex-wrap gap-2">
+                {firstChapter && (
+                  <Link
+                    href={`/read/${firstChapter.id}`}
+                    prefetch={false}
+                    className={buttonClassName({
+                      size: "lg",
+                      className: "flex-1 min-[480px]:flex-none",
+                    })}
+                  >
+                    <BookOpen className="h-5 w-5" /> Start reading
+                  </Link>
+                )}
+                {session?.user?.id && (
+                  <AddToShelfButton
+                    shelves={shelves}
+                    mangaId={manga.id}
+                    title={manga.title}
+                    coverUrl={cover}
+                  />
+                )}
+                <FavoriteButton
                   mangaId={manga.id}
                   title={manga.title}
                   coverUrl={cover}
+                  variant="full"
+                  size="lg"
                 />
-              )}
-              <FavoriteButton
-                mangaId={manga.id}
-                title={manga.title}
-                coverUrl={cover}
-                variant="full"
-                size="lg"
-              />
-            </div>
+              </div>
 
-            <Synopsis text={manga.description} />
+              <Synopsis text={manga.description} />
+            </div>
           </div>
         </div>
+      </SeriesTintScope>
 
+      <div className="relative mx-auto max-w-5xl px-4 pb-8 pt-2">
         <div className="space-y-4">
           <h2 className="text-xl font-bold">
             Chapters{" "}

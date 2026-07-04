@@ -3,7 +3,13 @@
 /* eslint-disable @next/next/no-img-element */
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   ArrowLeft,
@@ -15,8 +21,11 @@ import {
   X,
 } from "lucide-react";
 import { InternalAdPreview } from "@/components/ads/internal-ad-preview";
-import { CoverTransitionElement } from "@/components/manga/cover-transition";
 import { buttonClassName } from "@/components/ui/button";
+import {
+  DEFAULT_SERIES_TINT,
+  readCachedSeriesTint,
+} from "@/lib/extract-tint";
 import { useFavorites } from "@/lib/use-favorites";
 import {
   useMarkReadingRhythmReadToday,
@@ -270,6 +279,16 @@ function ReaderContent(props: Props) {
   const markReadingRhythmReadToday = useMarkReadingRhythmReadToday();
   const latestProgressPageRef = useRef(0);
   const lastProgressFlushRef = useRef(0);
+  const readerRootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    readerRootRef.current?.style.setProperty(
+      "--series-tint",
+      mangaId
+        ? readCachedSeriesTint(mangaId) ?? DEFAULT_SERIES_TINT
+        : DEFAULT_SERIES_TINT,
+    );
+  }, [mangaId]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -692,9 +711,14 @@ function ReaderContent(props: Props) {
   }, [slide, mode, imageUrls, total]);
 
   const backHref = mangaId ? `/manga/${mangaId}` : "/";
+  const readerStyle = { "--series-tint": DEFAULT_SERIES_TINT } as CSSProperties;
 
   return (
-    <div className="min-h-screen bg-reader-canvas text-reader-foreground relative overflow-hidden">
+    <div
+      ref={readerRootRef}
+      className="relative min-h-screen overflow-hidden bg-reader-canvas text-reader-foreground"
+      style={readerStyle}
+    >
       <h1 className="sr-only">
         {props.mangaTitle} {props.chapterLabel}
         {props.chapterTitle ? `: ${props.chapterTitle}` : ""}
@@ -709,8 +733,12 @@ function ReaderContent(props: Props) {
           )}
         >
           <div
+            data-yomi-series-tint-consumer="progress"
             className="h-full origin-left transition-[width] duration-150 ease-out"
-            style={{ width: `${scrollProgress * 100}%`, background: "var(--shelf-edge)" }}
+            style={{
+              width: `${scrollProgress * 100}%`,
+              background: "var(--series-tint)",
+            }}
           />
         </div>
       )}
@@ -1212,21 +1240,6 @@ function PagedReader({
       };
   const slideContent = isIntro ? (
     <div className="w-full max-w-xl space-y-6 text-center">
-      {coverUrl && mangaId && (
-        <CoverTransitionElement
-          mangaId={mangaId}
-          active
-          className="relative mx-auto aspect-[2/3] w-28 overflow-hidden rounded-cover border border-reader-line bg-reader-chrome shadow-2xl sm:w-32"
-        >
-          <img
-            src={coverUrl}
-            alt={`${mangaTitle} cover`}
-            loading="eager"
-            decoding="async"
-            className="h-full w-full object-cover"
-          />
-        </CoverTransitionElement>
-      )}
       {recap && (
         <div className="rounded-2xl border border-reader-line bg-reader-chrome/50 p-6 backdrop-blur shadow-2xl mb-8 animate-in fade-in slide-in-from-bottom-4">
           <p className="text-xs font-semibold uppercase tracking-widest text-reader-muted mb-2">The Story So Far</p>
@@ -1266,12 +1279,14 @@ function PagedReader({
     </div>
   ) : (
     <>
-      {/* Dynamic Ambiance Glow */}
-      <div className="absolute inset-0 -z-10 overflow-hidden bg-reader-canvas pointer-events-none transition-opacity duration-700" style={{ opacity: zenMode ? 1 : 0.3 }}>
-        <img
-          src={imageUrls[slide - 1]}
-          alt=""
-          className="h-full w-full object-cover blur-[80px]"
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 -z-10 overflow-hidden transition-opacity duration-700"
+        style={{ opacity: zenMode ? 0.36 : 0.22 }}
+      >
+        <div
+          data-yomi-series-tint-consumer="paged-glow"
+          className="absolute left-1/2 top-1/2 h-[70vh] w-[min(56rem,80vw)] -translate-x-1/2 -translate-y-1/2 rounded-full blur-[96px] [background:var(--series-tint)]"
         />
       </div>
       <ReaderPageImage
