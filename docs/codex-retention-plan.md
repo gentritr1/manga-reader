@@ -307,3 +307,20 @@ covers are what travels on Discord/TikTok, where our audience discovers manga.
 One PR per row (1.2 + 1.3 may combine since both live at chapter end). After
 each PR: eslint, tsc, build, and a 390px-viewport mobile check (no horizontal
 overflow outside intended rails).
+
+## Pipeline task (fold into the 1.2 + 1.3 PR)
+
+Make future migrations apply automatically on deploy:
+
+- Change the `build` script in `package.json` to
+  `prisma generate && prisma migrate deploy && next build`.
+- `migrate deploy` uses `DIRECT_URL` (unpooled) per the datasource comments in
+  `prisma/schema.prisma` — do not point it at the pooled URL.
+- **Known state:** the `20260704120000_add_reading_progress_page` migration was
+  applied to production manually via SQL editor, so it is NOT recorded in
+  `_prisma_migrations`. The repo owner will baseline it with
+  `prisma migrate resolve --applied 20260704120000_add_reading_progress_page`
+  (run once against production) BEFORE this PR is deployed. Note this
+  prominently in the PR description; do not try to work around it in code.
+- Local dev intentionally runs on SQLite (`file:./dev.db`) and is exempt —
+  never run `migrate deploy` as part of local dev scripts.
