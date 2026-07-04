@@ -223,6 +223,29 @@ input); no layout shift.
 
 ## Phase 3 — Discovery & distribution loops
 
+### 3.0 Mobile polish: detail header + hero centering (do this first)
+
+Observed on a ~430–470px viewport (above 390px, below the `min-[480px]`
+breakpoint):
+
+1. **Manga detail header** (`app/manga/[id]/page.tsx`): the layout stacks but
+   the cover keeps `w-36` and stays left-anchored, leaving a large dead zone to
+   its right; the page reads unbalanced and the tint glow area looks empty.
+   Rework the stacked (<480px) branch into a deliberate composition — e.g.
+   center the cover (slightly larger), center the title/author block under it,
+   and let the series-tint glow sit behind the cover — rather than a shrunken
+   copy of the desktop row. Judge the result visually at 390px, 430px, and
+   470px; the transition into the 480px+ row layout must not jump.
+2. **Home hero** (`components/home/hero.tsx`): at the same widths the cover
+   collage does not sit visually centered relative to the centered text/CTAs
+   below it (side covers + `translate-x-[26%]` offsets clip asymmetrically
+   under the section's `overflow-hidden`). Diagnose in-browser and fix so the
+   composition is optically centered at 390–479px with no horizontal overflow.
+
+Acceptance: screenshots at 390px and 440px for home and one detail page, both
+themes; no layout shift against the current 480px+ presentation; cover
+view-transition morph still pairs correctly after the detail-header rework.
+
 ### 3.1 "Tonight's binge" — deterministic editorial module
 
 **Goal:** One curated-feeling pick per day on the homepage, from data we
