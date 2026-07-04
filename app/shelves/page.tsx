@@ -22,14 +22,16 @@ export default async function ShelvesPage() {
   });
 
   return (
-    <main className="flex-1 w-full bg-surface-canvas min-h-screen">
-      <div className="mx-auto max-w-6xl px-4 py-16 sm:py-24">
-        <div className="mb-16 space-y-4 max-w-3xl">
-          <h1 className="text-5xl font-black tracking-tight text-content-primary sm:text-6xl drop-shadow-sm">
-            Your Shelves
+    <main className="flex-1 w-full bg-surface-canvas">
+      <div className="mx-auto max-w-6xl px-4 py-12 sm:py-16">
+        <div className="mb-10 max-w-2xl space-y-3">
+          <h1 className="text-4xl font-black tracking-tight text-content-primary sm:text-5xl">
+            Your shelves
           </h1>
-          <p className="text-lg text-content-secondary font-medium leading-relaxed">
-            Curate your distinct reading vibe. Build custom collections and export beautiful images to share on social media.
+          <p className="text-base leading-relaxed text-content-secondary sm:text-lg">
+            Group titles into collections you actually come back to: what you&rsquo;re
+            reading, what&rsquo;s finished, the weekend binge pile. Save any shelf as an
+            image to share.
           </p>
         </div>
         <ShelvesClient initialShelves={shelves} />

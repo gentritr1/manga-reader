@@ -4,6 +4,7 @@ import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
+import { Lock, Mail, User } from "lucide-react";
 import { YomiMark } from "@/components/brand/yomi-mark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -84,74 +85,120 @@ export function AuthForm({
   };
 
   return (
-    <div className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-sm flex-col justify-center px-4 py-12">
-      <div className="mb-8 text-center">
-        <YomiMark className="mx-auto mb-4 h-12 w-12 [filter:drop-shadow(0_10px_18px_rgb(36_19_95_/_0.18))]" />
-        <h1 className="text-2xl font-bold">
-          {isSignup ? "Create your account" : "Welcome back"}
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {authIntro(callbackUrl, isSignup)}
-        </p>
+    <div className="relative isolate flex min-h-[calc(100vh-4rem)] w-full items-center justify-center overflow-hidden px-4 py-12">
+      {/* Ambient brand glow: vibrance without clutter, framing the card. */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10">
+        <div className="absolute -left-24 top-[-10%] h-72 w-72 rounded-full bg-brand-primary/25 blur-[120px]" />
+        <div className="absolute -right-20 top-1/3 h-72 w-72 rounded-full bg-discovery/20 blur-[120px]" />
+        <div className="absolute bottom-[-12%] left-1/3 h-72 w-72 rounded-full bg-action-primary/15 blur-[120px]" />
       </div>
 
-      {googleEnabled && (
-        <>
-          <Button
-            variant="outline"
-            size="lg"
-            onClick={() => signIn("google", { callbackUrl })}
-            className="w-full"
-          >
-            Continue with Google
-          </Button>
-          <div className="my-5 flex items-center gap-3 text-xs text-muted-foreground">
-            <span className="h-px flex-1 bg-border" /> or <span className="h-px flex-1 bg-border" />
-          </div>
-        </>
-      )}
+      <div className="yomi-rise w-full max-w-md rounded-2xl border border-line-subtle bg-surface-panel/70 p-6 shadow-[var(--elevation-panel)] backdrop-blur-xl sm:p-8">
+        <div className="mb-7 text-center">
+          <YomiMark className="mx-auto mb-4 h-12 w-12 [filter:drop-shadow(0_12px_22px_rgb(36_19_95_/_0.28))]" />
+          <h1 className="text-2xl font-extrabold tracking-tight">
+            {isSignup ? "Create your account" : "Welcome back"}
+          </h1>
+          <p className="mx-auto mt-1.5 max-w-xs text-sm leading-relaxed text-content-secondary">
+            {authIntro(callbackUrl, isSignup)}
+          </p>
+        </div>
 
-      <form onSubmit={onSubmit} className="space-y-3">
-        {isSignup && (
-          <Input
-            placeholder="Display name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            autoComplete="name"
-          />
+        {googleEnabled && (
+          <>
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={() => signIn("google", { callbackUrl })}
+              className="w-full"
+            >
+              Continue with Google
+            </Button>
+            <div className="my-5 flex items-center gap-3 text-xs text-content-secondary">
+              <span className="h-px flex-1 bg-line-subtle" /> or{" "}
+              <span className="h-px flex-1 bg-line-subtle" />
+            </div>
+          </>
         )}
-        <Input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          autoComplete="email"
-          required
-        />
-        <Input
-          type="password"
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          autoComplete={isSignup ? "new-password" : "current-password"}
-          required
-          minLength={isSignup ? 8 : undefined}
-        />
-        {error && <p className="text-sm text-danger">{error}</p>}
-        <Button type="submit" size="lg" className="w-full" disabled={loading}>
-          {loading ? "Please wait…" : isSignup ? "Create account" : "Log in"}
-        </Button>
-      </form>
 
-      <p className="mt-6 text-center text-sm text-muted-foreground">
-        {isSignup ? "Already have an account? " : "Don’t have an account? "}
-        <Link
-          href={isSignup ? "/login" : "/signup"}
-          className="font-medium text-accent hover:underline"
-        >
-          {isSignup ? "Log in" : "Sign up"}
-        </Link>
-      </p>
+        <form onSubmit={onSubmit} className="space-y-3">
+          {isSignup && (
+            <Field icon={User}>
+              <Input
+                placeholder="Display name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                autoComplete="name"
+                className="pl-10"
+              />
+            </Field>
+          )}
+          <Field icon={Mail}>
+            <Input
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+              required
+              className="pl-10"
+            />
+          </Field>
+          <Field icon={Lock}>
+            <Input
+              type="password"
+              placeholder="Password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete={isSignup ? "new-password" : "current-password"}
+              required
+              minLength={isSignup ? 8 : undefined}
+              className="pl-10"
+            />
+          </Field>
+          {error && (
+            <p className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">
+              {error}
+            </p>
+          )}
+          <Button
+            type="submit"
+            size="lg"
+            className="w-full shadow-action-primary/25 hover:brightness-110"
+            disabled={loading}
+          >
+            {loading ? "Please wait…" : isSignup ? "Create account" : "Log in"}
+          </Button>
+        </form>
+
+        <p className="mt-6 text-center text-sm text-content-secondary">
+          {isSignup ? "Already have an account? " : "Don’t have an account? "}
+          <Link
+            href={isSignup ? "/login" : "/signup"}
+            className="font-semibold text-brand-primary hover:underline"
+          >
+            {isSignup ? "Log in" : "Sign up"}
+          </Link>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function Field({
+  icon: Icon,
+  children,
+}: {
+  icon: React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="relative">
+      <Icon
+        aria-hidden={true}
+        className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-content-secondary"
+      />
+      {children}
     </div>
   );
 }

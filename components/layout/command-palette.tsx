@@ -116,15 +116,19 @@ export function CommandPalette({ className }: { className?: string }) {
         onClick={() => setOpen(true)}
         aria-expanded={open}
         aria-controls={open ? paletteId : undefined}
+        aria-label="Search manga"
         className={cn(
-          "flex items-center gap-2 rounded-xl border border-line-subtle bg-surface-muted/30 px-3 py-1.5 text-sm text-content-secondary transition-colors hover:bg-surface-muted/80 hover:text-content-primary w-full sm:w-auto",
+          // Mobile: a ghost icon button that matches the theme toggle. From sm
+          // up: a real search field that grows to fill and never wraps.
+          "flex h-11 min-w-0 items-center justify-center gap-2 rounded-lg text-sm text-content-secondary transition-colors hover:bg-surface-muted hover:text-content-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus sm:justify-start sm:rounded-xl sm:border sm:border-line-subtle sm:bg-surface-muted/30 sm:px-3.5 sm:hover:bg-surface-muted/80",
           className
         )}
       >
-        <Search className="h-4 w-4" />
-        <span className="hidden sm:inline font-medium">Search manga...</span>
-        <span className="inline sm:hidden font-medium">Search</span>
-        <kbd className="pointer-events-none ml-auto hidden h-5 select-none items-center gap-1 rounded border border-line-subtle bg-surface-canvas/50 px-1.5 font-mono text-[10px] font-medium opacity-100 sm:flex">
+        <Search className="h-5 w-5 shrink-0 sm:h-4 sm:w-4" aria-hidden="true" />
+        <span className="hidden min-w-0 flex-1 truncate text-left font-medium sm:block">
+          Search manga...
+        </span>
+        <kbd className="pointer-events-none hidden h-5 shrink-0 select-none items-center gap-1 rounded border border-line-subtle bg-surface-canvas/50 px-1.5 font-mono text-[10px] font-medium opacity-100 lg:flex">
           <span className="text-xs">⌘</span>K
         </kbd>
       </button>

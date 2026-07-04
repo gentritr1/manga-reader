@@ -12,6 +12,7 @@ import {
   Rows3,
 } from "lucide-react";
 import { InternalAdPreview } from "@/components/ads/internal-ad-preview";
+import { buttonClassName } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type Mode = "vertical" | "paged";
@@ -53,6 +54,42 @@ function ReaderContent(props: Props) {
   const total = imageUrls.length;
   const lastSlide = total + 1;
 
+  // Vertical reading progress: which page is in view and how far scrolled.
+  const [currentPage, setCurrentPage] = useState(1);
+  const [scrollProgress, setScrollProgress] = useState(0);
+  // One-time hint so the tap-to-hide-controls gesture is discoverable.
+  const [showHint, setShowHint] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (localStorage.getItem("reader-hint-seen")) return;
+    setShowHint(true);
+    localStorage.setItem("reader-hint-seen", "1");
+    const timer = setTimeout(() => setShowHint(false), 4200);
+    return () => clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    if (mode !== "vertical") return;
+    let frame = 0;
+    const update = () => {
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      setScrollProgress(max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0);
+    };
+    const onScroll = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(update);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onScroll);
+    update();
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onScroll);
+      cancelAnimationFrame(frame);
+    };
+  }, [mode]);
+
   const sessionRef = useRef<ReaderSessionState>({
     startedAt: 0,
     mode: "vertical",
@@ -87,6 +124,7 @@ function ReaderContent(props: Props) {
     (pageNumber: number) => {
       if (pageNumber < 1 || pageNumber > total) return;
       sessionRef.current.pagesSeen.add(pageNumber);
+      setCurrentPage(pageNumber);
     },
     [total],
   );
@@ -230,6 +268,21 @@ function ReaderContent(props: Props) {
         {props.mangaTitle} {props.chapterLabel}
         {props.chapterTitle ? `: ${props.chapterTitle}` : ""}
       </h1>
+      {/* Vertical reading progress: a thin brand line that tracks scroll. */}
+      {mode === "vertical" && (
+        <div
+          aria-hidden="true"
+          className={cn(
+            "fixed inset-x-0 top-0 z-40 h-[3px] bg-reader-line/40 transition-opacity duration-300",
+            zenMode && "opacity-0",
+          )}
+        >
+          <div
+            className="h-full origin-left transition-[width] duration-150 ease-out"
+            style={{ width: `${scrollProgress * 100}%`, background: "var(--shelf-edge)" }}
+          />
+        </div>
+      )}
       {/* Top bar */}
       <header className={cn("sticky top-0 z-30 flex min-h-14 items-center gap-3 border-b border-reader-line bg-reader-chrome px-4 backdrop-blur transition-all duration-300", zenMode && "-translate-y-full opacity-0 pointer-events-none")}>
         <Link
@@ -245,6 +298,12 @@ function ReaderContent(props: Props) {
           <p className="truncate text-xs text-reader-muted">
             {props.chapterLabel}
             {props.chapterTitle ? `: ${props.chapterTitle}` : ""}
+            {mode === "vertical" && total > 0 && (
+              <span className="tabular-nums">
+                {" · "}
+                {Math.min(currentPage, total)} / {total}
+              </span>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-1">
@@ -293,6 +352,15 @@ function ReaderContent(props: Props) {
           toggleZenMode={toggleZenMode}
         />
       )}
+
+      {/* First-run gesture hint, auto-dismissing. */}
+      {showHint && !zenMode && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-20 z-40 flex justify-center px-4">
+          <p className="yomi-rise rounded-full border border-reader-line bg-reader-chrome px-4 py-2 text-xs font-medium text-reader-foreground shadow-2xl backdrop-blur">
+            Tap the center to hide controls
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -301,23 +369,32 @@ function ChapterNav({ prevId, nextId }: { prevId: string | null; nextId: string 
   const router = useRouter();
 
   return (
-    <div className="flex items-center justify-center gap-6 text-sm font-medium">
-      <button
-        type="button"
-        disabled={!prevId}
-        onClick={() => prevId && router.push(`/read/${prevId}`)}
-        className="flex items-center gap-1.5 text-reader-muted transition hover:text-reader-foreground disabled:pointer-events-none disabled:opacity-30"
-      >
-        <ChevronLeft className="h-4 w-4" aria-hidden="true" /> Previous
-      </button>
-      <button
-        type="button"
-        disabled={!nextId}
-        onClick={() => nextId && router.push(`/read/${nextId}`)}
-        className="flex items-center gap-1.5 text-reader-muted transition hover:text-reader-foreground disabled:pointer-events-none disabled:opacity-30"
-      >
-        Next chapter <ChevronRight className="h-4 w-4" aria-hidden="true" />
-      </button>
+    <div className="flex flex-col items-center gap-4">
+      {nextId ? (
+        <button
+          type="button"
+          onClick={() => router.push(`/read/${nextId}`)}
+          className={buttonClassName({
+            size: "lg",
+            className: "w-full max-w-xs bg-action-primary text-action-primary-foreground hover:brightness-110",
+          })}
+        >
+          Next chapter <ChevronRight className="h-5 w-5" aria-hidden="true" />
+        </button>
+      ) : (
+        <p className="text-sm font-medium text-reader-muted">
+          You&rsquo;re all caught up.
+        </p>
+      )}
+      {prevId && (
+        <button
+          type="button"
+          onClick={() => router.push(`/read/${prevId}`)}
+          className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-reader-muted transition hover:text-reader-foreground focus-visible:ring-reader-focus"
+        >
+          <ChevronLeft className="h-4 w-4" aria-hidden="true" /> Previous chapter
+        </button>
+      )}
     </div>
   );
 }
@@ -483,7 +560,9 @@ function PagedReader({
               type="button"
               onClick={onNext}
               aria-label="Start reading"
-              className="inline-flex items-center gap-1 text-sm font-medium text-reader-muted transition hover:text-reader-foreground"
+              className={buttonClassName({
+                className: "bg-action-primary text-action-primary-foreground hover:brightness-110",
+              })}
             >
               Start reading <ChevronRight className="h-4 w-4" aria-hidden="true" />
             </button>

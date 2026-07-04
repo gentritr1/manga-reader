@@ -12,7 +12,7 @@ export function Synopsis({ text }: { text: string }) {
     <div>
       <p
         className={cn(
-          "whitespace-pre-line text-sm leading-relaxed text-muted-foreground",
+          "max-w-2xl whitespace-pre-line text-sm leading-relaxed text-muted-foreground",
           !expanded && "line-clamp-4",
         )}
       >

@@ -3,7 +3,8 @@
 import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Search, SlidersHorizontal } from "lucide-react";
+import { Check, Search, SlidersHorizontal } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { searchMangaClient } from "@/lib/mangadex-client";
 import {
   TAG_GROUPS,
@@ -15,6 +16,7 @@ import { MangaGridSkeleton } from "@/components/manga/manga-grid";
 import { InternalAdPreview } from "@/components/ads/internal-ad-preview";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 24;
@@ -63,6 +65,7 @@ export function BrowseClient() {
   );
   const [genres, setGenres] = useState<string[]>([]);
   const [showFilters, setShowFilters] = useState(false);
+  const reduceMotion = useReducedMotion();
 
   const debouncedTitle = useDebounced(title);
 
@@ -156,80 +159,101 @@ export function BrowseClient() {
           </Button>
         </div>
 
-        {showFilters && (
-          <div
-            id={filtersId}
-            className="space-y-4 border-t border-border pt-4"
-          >
-            <div className="flex flex-wrap gap-3">
-              <label className="flex items-center gap-2 text-sm">
-                <span className="text-muted-foreground">Sort</span>
-                <select
-                  value={sort}
-                  onChange={(e) => setSort(e.target.value as SortOption)}
-                  className="h-11 rounded-lg border border-border bg-background px-3 text-sm focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  {SORTS.map((s) => (
-                    <option key={s.value} value={s.value}>
-                      {s.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="flex items-center gap-2 text-sm">
-                <span className="text-muted-foreground">Status</span>
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as MangaStatus | "")}
-                  className="h-11 rounded-lg border border-border bg-background px-3 text-sm focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  {STATUSES.map((s) => (
-                    <option key={s.value} value={s.value}>
-                      {s.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <div className="max-h-72 space-y-3 overflow-y-auto pr-1">
-              {TAG_GROUPS.map((group) => (
-                <div key={group.label} className="space-y-1.5">
-                  <p className="text-sm font-semibold text-foreground">
-                    {group.label}
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {group.tags.map((tag) => (
-                      <button
-                        type="button"
-                        key={tag.id}
-                        onClick={() => toggleGenre(tag.id)}
-                        aria-pressed={genres.includes(tag.id)}
-                        className={cn(
-                          "min-h-11 rounded-full border px-3 text-sm font-medium transition",
-                          genres.includes(tag.id)
-                            ? "border-accent bg-accent text-accent-foreground"
-                            : "border-border text-muted-foreground hover:text-foreground",
-                        )}
-                      >
-                        {tag.name}
-                      </button>
-                    ))}
-                  </div>
+        <AnimatePresence initial={false}>
+          {showFilters && (
+            <motion.div
+              key="filters"
+              id={filtersId}
+              initial={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -8 }}
+              transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+              className="space-y-5 border-t border-line-subtle pt-5"
+            >
+              <div className="flex flex-wrap gap-4">
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-content-secondary">
+                    Sort by
+                  </span>
+                  <Select
+                    value={sort}
+                    options={SORTS}
+                    onChange={setSort}
+                    label="Sort by"
+                    className="w-52"
+                  />
                 </div>
-              ))}
-            </div>
-            {genres.length > 0 && (
-              <button
-                type="button"
-                onClick={() => setGenres([])}
-                aria-label={`Clear ${genres.length} selected genre filters`}
-                className="min-h-11 rounded-lg text-sm font-medium text-accent hover:underline"
-              >
-                Clear {genres.length} selected
-              </button>
-            )}
-          </div>
-        )}
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-content-secondary">
+                    Status
+                  </span>
+                  <Select
+                    value={status}
+                    options={STATUSES}
+                    onChange={setStatus}
+                    label="Status"
+                    className="w-44"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                {TAG_GROUPS.map((group) => (
+                  <div key={group.label} className="space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-content-secondary">
+                      {group.label}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {group.tags.map((tag) => {
+                        const selected = genres.includes(tag.id);
+                        return (
+                          <button
+                            type="button"
+                            key={tag.id}
+                            onClick={() => toggleGenre(tag.id)}
+                            aria-pressed={selected}
+                            className={cn(
+                              "inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus active:scale-95",
+                              selected
+                                ? "border-transparent bg-brand-primary text-brand-primary-foreground shadow-sm shadow-brand-primary/25"
+                                : "border-line-subtle text-content-secondary hover:border-line-strong hover:bg-surface-muted/60 hover:text-content-primary",
+                            )}
+                          >
+                            <AnimatePresence initial={false}>
+                              {selected && (
+                                <motion.span
+                                  initial={reduceMotion ? false : { width: 0, opacity: 0 }}
+                                  animate={{ width: "auto", opacity: 1 }}
+                                  exit={reduceMotion ? { opacity: 0 } : { width: 0, opacity: 0 }}
+                                  transition={{ duration: 0.15 }}
+                                  className="grid place-items-center overflow-hidden"
+                                >
+                                  <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                                </motion.span>
+                              )}
+                            </AnimatePresence>
+                            {tag.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {genres.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setGenres([])}
+                  aria-label={`Clear ${genres.length} selected genre filters`}
+                  className="min-h-9 rounded-lg text-sm font-medium text-brand-primary transition hover:underline"
+                >
+                  Clear {genres.length} selected
+                </button>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {query.isLoading ? (

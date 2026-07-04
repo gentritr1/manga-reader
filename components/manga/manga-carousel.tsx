@@ -23,7 +23,7 @@ function CarouselArrow({
       aria-controls={railId}
       onClick={() => onScroll(dir)}
       className={cn(
-        "absolute top-[34%] z-10 grid h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-line-subtle bg-surface-canvas/90 [box-shadow:var(--elevation-panel)] backdrop-blur transition hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus",
+        "absolute top-[34%] z-10 hidden h-11 w-11 -translate-y-1/2 place-items-center rounded-full border border-line-subtle bg-surface-canvas/90 [box-shadow:var(--elevation-panel)] backdrop-blur transition hover:bg-surface-muted focus-visible:ring-2 focus-visible:ring-focus sm:grid",
         dir === -1 ? "left-2" : "right-2",
         show ? "opacity-100" : "pointer-events-none opacity-0",
       )}

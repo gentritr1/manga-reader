@@ -295,14 +295,19 @@ body {
   border-color: var(--border);
 }
 
-h1,
-h2,
-h3 {
-  text-wrap: balance;
-}
+/* Kept in @layer base so Tailwind's utilities layer (truncate, line-clamp,
+   whitespace-*) always wins. Unlayered, text-wrap: pretty would override
+   truncate's white-space: nowrap and silently break single-line clamping. */
+@layer base {
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
+  }
 
-p {
-  text-wrap: pretty;
+  p {
+    text-wrap: pretty;
+  }
 }
 
 ::selection {
@@ -347,6 +352,35 @@ textarea:focus-visible {
   100% {
     transform: translateX(100%);
   }
+}
+
+/* Entrance motion. Content is visible by default; these enhance, not gate.
+   The reduced-motion block below collapses the duration so it snaps in. */
+@keyframes yomi-rise {
+  from {
+    opacity: 0;
+    transform: translateY(1.25rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.yomi-rise {
+  animation: yomi-rise var(--duration-base) var(--ease-standard) both;
+}
+.yomi-rise-slow {
+  animation: yomi-rise 520ms var(--ease-standard) both;
+}
+.yomi-delay-1 {
+  animation-delay: 70ms;
+}
+.yomi-delay-2 {
+  animation-delay: 140ms;
+}
+.yomi-delay-3 {
+  animation-delay: 210ms;
 }
 .skeleton {
   position: relative;

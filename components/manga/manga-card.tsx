@@ -66,10 +66,11 @@ export function MangaCard({
       </Link>
 
       <div className="flex items-start justify-between gap-3">
-        <h3 className="text-sm font-medium leading-snug">
+        <h3 className="min-h-[2.5rem] text-sm font-medium leading-snug">
           <Link
             href={`/manga/${manga.id}`}
-            className="line-clamp-2 block rounded-sm transition hover:text-brand-primary focus-visible:text-brand-primary"
+            title={manga.title}
+            className="line-clamp-2 rounded-sm transition hover:text-brand-primary focus-visible:text-brand-primary"
           >
             {manga.title}
           </Link>

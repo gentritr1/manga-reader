@@ -4,6 +4,7 @@ import "./globals.css";
 import { Providers } from "@/components/providers";
 import { AdsterraSocialAd } from "@/components/ads/internal-ad-preview";
 import { Navbar } from "@/components/layout/navbar";
+import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
 import { Footer } from "@/components/layout/footer";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
 
@@ -56,6 +57,7 @@ export default function RootLayout({
             {children}
           </main>
           <Footer />
+          <MobileTabBar />
           <AdsterraSocialAd />
         </Providers>
         <Analytics />

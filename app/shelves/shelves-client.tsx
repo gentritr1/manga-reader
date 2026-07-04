@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useTransition, useRef, useEffect } from "react";
+import { useState, useTransition } from "react";
 import Image from "next/image";
 import { createShelf, deleteShelf } from "./actions";
-import { Plus, Trash2, Share, Loader2, Check } from "lucide-react";
+import { Plus, Trash2, Share, Loader2, Check, LibraryBig, BookMarked } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { YomiMark } from "@/components/brand/yomi-mark";
 import { toPng } from "html-to-image";
 import { cn } from "@/lib/utils";
 
@@ -23,53 +24,70 @@ type Shelf = {
   items: ShelfItem[];
 };
 
-const colorMap: Record<string, { bg: string; ring: string }> = {
-  indigo: { bg: "bg-indigo-500", ring: "ring-indigo-500" },
-  rose: { bg: "bg-rose-500", ring: "ring-rose-500" },
-  emerald: { bg: "bg-emerald-500", ring: "ring-emerald-500" },
-  amber: { bg: "bg-amber-500", ring: "ring-amber-500" },
-  cyan: { bg: "bg-cyan-500", ring: "ring-cyan-500" },
-  violet: { bg: "bg-violet-500", ring: "ring-violet-500" },
-  fuchsia: { bg: "bg-fuchsia-500", ring: "ring-fuchsia-500" },
-  orange: { bg: "bg-orange-500", ring: "ring-orange-500" },
-  slate: { bg: "bg-slate-500", ring: "ring-slate-500" },
+// Refined, jewel-toned shelf accents tuned to read well on the dark night-shelf
+// canvas. Keyed by the colour ids the server already validates.
+const SHELF_COLORS: Record<string, string> = {
+  violet: "oklch(0.62 0.17 285)",
+  indigo: "oklch(0.58 0.16 270)",
+  cyan: "oklch(0.72 0.11 205)",
+  emerald: "oklch(0.7 0.12 165)",
+  amber: "oklch(0.78 0.13 75)",
+  orange: "oklch(0.7 0.16 48)",
+  rose: "oklch(0.68 0.17 14)",
+  fuchsia: "oklch(0.65 0.2 330)",
+  slate: "oklch(0.62 0.035 265)",
 };
+const COLOR_IDS = Object.keys(SHELF_COLORS);
+const shelfColor = (id: string) => SHELF_COLORS[id] ?? SHELF_COLORS.violet;
 
-const colorOptions = Object.entries(colorMap).map(([id, styles]) => ({
-  id,
-  ...styles,
-}));
+// One-tap starter collections. Creating one is a single click, so a brand-new
+// reader leaves with a useful shelf instead of a blank page.
+const TEMPLATES: { name: string; color: string }[] = [
+  { name: "Reading", color: "cyan" },
+  { name: "Want to read", color: "violet" },
+  { name: "Finished", color: "emerald" },
+  { name: "Weekend binge", color: "amber" },
+  { name: "All-time favorites", color: "rose" },
+];
 
 export function ShelvesClient({ initialShelves }: { initialShelves: Shelf[] }) {
   const [name, setName] = useState("");
-  const [colorVibe, setColorVibe] = useState("indigo");
+  const [color, setColor] = useState("violet");
   const [isPending, startTransition] = useTransition();
+  const [pendingTemplate, setPendingTemplate] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
-  const colorPickerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    function onPointerDown(e: PointerEvent) {
-      if (colorPickerRef.current && !colorPickerRef.current.contains(e.target as Node)) {
-        setIsColorPickerOpen(false);
-      }
-    }
-    document.addEventListener("pointerdown", onPointerDown);
-    return () => document.removeEventListener("pointerdown", onPointerDown);
-  }, []);
+  const existingNames = new Set(
+    initialShelves.map((s) => s.name.trim().toLowerCase()),
+  );
+  const availableTemplates = TEMPLATES.filter(
+    (t) => !existingNames.has(t.name.toLowerCase()),
+  );
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) return;
+  const submit = (shelfName: string, shelfColor: string) => {
+    const trimmed = shelfName.trim();
+    if (!trimmed) return;
     setError(null);
     startTransition(async () => {
-      const result = await createShelf(name, colorVibe);
-      if (result?.error) {
-        setError(result.error);
-      } else {
-        setName("");
-      }
+      const result = await createShelf(trimmed, shelfColor);
+      if (result?.error) setError(result.error);
+      else if (trimmed === name.trim()) setName("");
+    });
+  };
+
+  const handleCreate = (e: React.FormEvent) => {
+    e.preventDefault();
+    submit(name, color);
+  };
+
+  const handleTemplate = (template: { name: string; color: string }) => {
+    setPendingTemplate(template.name);
+    setError(null);
+    startTransition(async () => {
+      const result = await createShelf(template.name, template.color);
+      if (result?.error) setError(result.error);
+      setPendingTemplate(null);
     });
   };
 
@@ -79,7 +97,10 @@ export function ShelvesClient({ initialShelves }: { initialShelves: Shelf[] }) {
       setDeletingId(null);
     } else {
       setDeletingId(id);
-      setTimeout(() => setDeletingId((current) => current === id ? null : current), 3000);
+      setTimeout(
+        () => setDeletingId((current) => (current === id ? null : current)),
+        3000,
+      );
     }
   };
 
@@ -87,143 +108,262 @@ export function ShelvesClient({ initialShelves }: { initialShelves: Shelf[] }) {
     const el = document.getElementById(`shelf-${shelfId}`);
     if (!el) return;
     try {
-      const dataUrl = await toPng(el, { backgroundColor: "#09090b", pixelRatio: 2 });
+      const dataUrl = await toPng(el, { backgroundColor: "#0a0a12", pixelRatio: 2 });
       const link = document.createElement("a");
       link.download = `yomi-${shelfName.replace(/\s+/g, "-").toLowerCase()}.png`;
       link.href = dataUrl;
       link.click();
-    } catch (error) {
-      console.error("Failed to export image:", error);
+    } catch (err) {
+      console.error("Failed to export image:", err);
     }
   };
 
-  return (
-    <div className="space-y-12">
-      <form onSubmit={handleCreate} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 p-2 bg-surface-canvas border border-line-subtle rounded-2xl shadow-sm max-w-3xl focus-within:ring-1 focus-within:ring-line-strong transition-all relative">
-        <Input
-          placeholder="Name your new shelf... (e.g. Midnight Manhwa)"
-          value={name}
-          onChange={(e) => {
-            setName(e.target.value);
-            if (error) setError(null);
-          }}
-          className="w-full sm:flex-1 h-12 bg-transparent border-none shadow-none text-base focus-visible:ring-0 placeholder:text-content-secondary/50 px-4 font-medium text-content-primary"
-        />
-        <div className="flex w-full sm:w-auto items-stretch gap-2 px-2 pb-2 sm:px-0 sm:pb-0 relative" ref={colorPickerRef}>
-          <button
-            type="button"
-            onClick={() => setIsColorPickerOpen(!isColorPickerOpen)}
-            className="flex items-center justify-center gap-2 px-4 bg-surface-muted/50 hover:bg-surface-muted border border-line-subtle rounded-xl transition-colors h-12 sm:h-10 shrink-0"
-            aria-label="Pick color"
-          >
-            <div
-              className={cn(
-                "w-4 h-4 rounded-full ring-2 ring-offset-2 ring-offset-surface-canvas shadow-sm",
-                colorMap[colorVibe]?.bg || colorMap.indigo.bg,
-                colorMap[colorVibe]?.ring || colorMap.indigo.ring,
-              )}
-            />
-            <span className="text-sm font-bold text-content-primary capitalize sm:hidden">Color</span>
-          </button>
+  const hasShelves = initialShelves.length > 0;
 
-          {isColorPickerOpen && (
-            <div className="absolute top-full sm:bottom-full sm:top-auto left-2 sm:left-auto sm:right-full mt-2 sm:mb-2 sm:mt-0 sm:mr-2 p-3 bg-surface-panel border border-line-subtle rounded-xl shadow-xl z-50 animate-in fade-in zoom-in-95 duration-200 grid grid-cols-5 gap-2 w-[200px]" style={{ animationTimingFunction: "cubic-bezier(0.22, 1, 0.36, 1)" }}>
-              {colorOptions.map((vibe, i) => (
+  return (
+    <div className="space-y-10">
+      {/* Composer */}
+      <form
+        onSubmit={handleCreate}
+        className="rounded-2xl border border-line-subtle bg-surface-panel p-4 sm:p-5"
+      >
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div className="flex-1 space-y-1.5">
+            <label
+              htmlFor="shelf-name"
+              className="text-xs font-semibold uppercase tracking-wide text-content-secondary"
+            >
+              New shelf
+            </label>
+            <Input
+              id="shelf-name"
+              placeholder="Name it — Midnight Manhwa, Comfort Reads…"
+              value={name}
+              onChange={(e) => {
+                setName(e.target.value);
+                if (error) setError(null);
+              }}
+              className="h-12 bg-surface-canvas text-base font-medium"
+            />
+          </div>
+          <Button
+            type="submit"
+            size="lg"
+            disabled={isPending || !name.trim()}
+            className="shrink-0 self-start sm:self-auto"
+          >
+            {isPending && !pendingTemplate ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Plus className="h-4 w-4" />
+            )}
+            Create shelf
+          </Button>
+        </div>
+
+        <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2">
+          <span className="text-xs font-semibold uppercase tracking-wide text-content-secondary">
+            Color
+          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            {COLOR_IDS.map((id) => {
+              const selected = color === id;
+              return (
                 <button
-                  key={vibe.id}
+                  key={id}
                   type="button"
-                  onClick={() => {
-                    setColorVibe(vibe.id);
-                    setIsColorPickerOpen(false);
-                  }}
-                  style={{ animationDelay: `${i * 25}ms`, animationTimingFunction: "cubic-bezier(0.16, 1, 0.3, 1)" }}
+                  onClick={() => setColor(id)}
+                  aria-label={`${id} shelf color`}
+                  aria-pressed={selected}
+                  style={{ background: shelfColor(id) }}
                   className={cn(
-                    "w-8 h-8 rounded-full transition-all flex items-center justify-center place-self-center animate-in zoom-in-50 fade-in fill-mode-both duration-300",
-                    vibe.bg,
-                    colorVibe === vibe.id
-                      ? cn("ring-2 ring-offset-2 ring-offset-surface-panel scale-110 shadow-md", vibe.ring)
-                      : "opacity-60 hover:opacity-100 hover:scale-105",
+                    "h-7 w-7 rounded-full transition-transform duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-offset-2 focus-visible:ring-offset-surface-panel",
+                    selected
+                      ? "scale-110 ring-2 ring-content-primary ring-offset-2 ring-offset-surface-panel"
+                      : "opacity-70 hover:scale-105 hover:opacity-100",
                   )}
-                  aria-label={`Select ${vibe.id} vibe`}
                 />
+              );
+            })}
+          </div>
+        </div>
+
+        {error && (
+          <p className="mt-3 text-sm font-medium text-danger">{error}</p>
+        )}
+      </form>
+
+      {/* Starter templates */}
+      {availableTemplates.length > 0 && (
+        <section className="space-y-3">
+          <div className="flex items-center gap-2">
+            <BookMarked className="h-4 w-4 text-content-secondary" aria-hidden="true" />
+            <h2 className="text-sm font-semibold text-content-primary">
+              {hasShelves ? "Add a starter shelf" : "Start with a shelf"}
+            </h2>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {availableTemplates.map((t) => {
+              const busy = pendingTemplate === t.name;
+              return (
+                <button
+                  key={t.name}
+                  type="button"
+                  onClick={() => handleTemplate(t)}
+                  disabled={isPending}
+                  className="group inline-flex items-center gap-2 rounded-full border border-line-subtle bg-surface-panel px-4 py-2 text-sm font-medium text-content-primary transition-all duration-200 hover:border-line-strong hover:bg-surface-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus active:scale-95 disabled:opacity-50"
+                >
+                  <span
+                    className="h-3 w-3 rounded-full transition-transform duration-200 group-hover:scale-110"
+                    style={{ background: shelfColor(t.color) }}
+                    aria-hidden="true"
+                  />
+                  {t.name}
+                  {busy ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-content-secondary" />
+                  ) : (
+                    <Plus className="h-3.5 w-3.5 text-content-secondary transition-transform duration-200 group-hover:rotate-90" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* Shelves */}
+      {hasShelves ? (
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
+          {initialShelves.map((shelf) => (
+            <ShelfCard
+              key={shelf.id}
+              shelf={shelf}
+              deleting={deletingId === shelf.id}
+              onDelete={() => handleDelete(shelf.id)}
+              onExport={() => handleExport(shelf.id, shelf.name)}
+            />
+          ))}
+        </div>
+      ) : (
+        <EmptyState />
+      )}
+    </div>
+  );
+}
+
+function EmptyState() {
+  return (
+    <div className="rounded-2xl border border-dashed border-line-strong bg-surface-shelf/40 px-6 py-16 text-center">
+      <YomiMark className="mx-auto mb-4 h-12 w-12 opacity-90" />
+      <h2 className="text-lg font-bold text-content-primary">No shelves yet</h2>
+      <p className="mx-auto mt-1.5 max-w-sm text-sm leading-relaxed text-content-secondary">
+        Name one above, or tap a starter shelf to begin. Add titles from any
+        manga page with the shelf button.
+      </p>
+    </div>
+  );
+}
+
+function ShelfCard({
+  shelf,
+  deleting,
+  onDelete,
+  onExport,
+}: {
+  shelf: Shelf;
+  deleting: boolean;
+  onDelete: () => void;
+  onExport: () => void;
+}) {
+  const color = shelfColor(shelf.colorVibe);
+  const count = shelf.items.length;
+
+  return (
+    <div className="group relative">
+      <article
+        id={`shelf-${shelf.id}`}
+        className="relative min-h-[280px] overflow-hidden rounded-2xl border border-line-subtle bg-surface-panel p-5"
+        // The shelf colour is woven into the surface as a soft tint, not stuck
+        // on as a stripe. Identity reads from the dot beside the name.
+        style={{
+          backgroundImage: `radial-gradient(125% 80% at 100% 0%, color-mix(in oklab, ${color} 13%, transparent), transparent 54%)`,
+        }}
+      >
+        <div className="relative flex h-full flex-col">
+          <header className="mb-4 flex items-start gap-2.5">
+            <span
+              aria-hidden="true"
+              className="mt-[0.45rem] h-2.5 w-2.5 shrink-0 rounded-full ring-1 ring-inset ring-line-inverse"
+              style={{ background: color }}
+            />
+            <div className="min-w-0">
+              <h3 className="line-clamp-2 text-xl font-black tracking-tight text-content-primary">
+                {shelf.name}
+              </h3>
+              <p className="mt-1 text-xs font-medium text-content-secondary">
+                {count === 0 ? "Empty shelf" : `${count} title${count === 1 ? "" : "s"}`}
+              </p>
+            </div>
+          </header>
+
+          {count === 0 ? (
+            <div className="mt-auto flex flex-col items-center justify-center py-10 text-center">
+              <div className="mb-3 grid h-11 w-11 place-items-center rounded-full bg-surface-muted">
+                <LibraryBig className="h-5 w-5 text-content-secondary" aria-hidden="true" />
+              </div>
+              <p className="text-sm font-medium text-content-primary">Nothing here yet</p>
+              <p className="mt-1 text-xs text-content-secondary">
+                Add titles from any manga page.
+              </p>
+            </div>
+          ) : (
+            <div className="relative mt-auto grid grid-cols-3 gap-2.5">
+              {shelf.items.slice(0, 6).map((item) => (
+                <div
+                  key={item.id}
+                  className="relative aspect-[2/3] overflow-hidden rounded-lg bg-surface-muted shadow-[var(--elevation-cover)] ring-1 ring-line-inverse"
+                >
+                  {item.coverUrl && (
+                    <Image
+                      src={item.coverUrl}
+                      alt=""
+                      fill
+                      sizes="120px"
+                      className="object-cover"
+                    />
+                  )}
+                </div>
               ))}
             </div>
           )}
-
-          <Button type="submit" size="md" disabled={isPending} className="shrink-0 h-12 sm:h-10 rounded-xl px-6 font-bold shadow-sm bg-content-primary text-surface-canvas hover:brightness-110 transition-all flex-1 sm:flex-none">
-            {isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Plus className="h-4 w-4 mr-1.5" />} Create
-          </Button>
         </div>
-      </form>
-      {error && <p className="text-red-500 text-sm font-medium px-4 mt-2 animate-in fade-in slide-in-from-top-2">{error}</p>}
+      </article>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {initialShelves.map((shelf) => (
-          <div key={shelf.id} className="relative group">
-            <div
-              id={`shelf-${shelf.id}`}
-              className="p-6 rounded-2xl border border-line-subtle bg-surface-canvas overflow-hidden shadow-xl relative min-h-[300px]"
-            >
-              {/* Ambiance back glow */}
-              <div className={cn("absolute -inset-1 opacity-20 blur-2xl z-0", colorMap[shelf.colorVibe]?.bg || colorMap.indigo.bg)} />
-
-              <div className="relative z-10 flex flex-col h-full">
-                <div className="mb-4">
-                  <h3 className="text-2xl font-black tracking-tight text-content-primary drop-shadow-sm">{shelf.name}</h3>
-                  <p className="text-[10px] font-bold text-content-secondary/80 uppercase tracking-[0.2em] mt-2 bg-surface-muted/50 inline-block px-2 py-1 rounded-md backdrop-blur-sm">Yomi Shelf</p>
-                </div>
-                
-                {shelf.items.length === 0 ? (
-                  <div className="mt-auto py-10 flex flex-col items-center justify-center text-center opacity-60">
-                    <div className="h-12 w-12 rounded-full bg-surface-muted mb-4 flex items-center justify-center">
-                      <Plus className="h-5 w-5 text-content-secondary" />
-                    </div>
-                    <p className="text-sm font-medium text-content-primary">Empty Shelf</p>
-                    <p className="text-xs text-content-secondary mt-1">Browse manga to add them here.</p>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-3 gap-3 mt-auto relative">
-                    <div className="absolute inset-0 bg-gradient-to-t from-surface-canvas/20 to-transparent pointer-events-none z-10" />
-                    {shelf.items.slice(0, 6).map((item) => (
-                      <div key={item.id} className="aspect-[2/3] bg-surface-muted rounded-xl overflow-hidden relative shadow-md ring-1 ring-white/10 transition-transform hover:scale-[1.02]">
-                        {item.coverUrl && (
-                          <Image
-                            src={item.coverUrl}
-                            alt=""
-                            fill
-                            sizes="96px"
-                            className="object-cover"
-                          />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            {/* Controls (Hidden on Export) */}
-            <div className="absolute top-4 right-4 z-20 flex gap-2 opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
-              <Button size="icon" variant="secondary" onClick={() => handleExport(shelf.id, shelf.name)} aria-label="Export">
-                <Share className="h-4 w-4"/>
-              </Button>
-              <Button
-                size="icon"
-                variant="secondary"
-                onClick={() => handleDelete(shelf.id)}
-                aria-label={deletingId === shelf.id ? "Confirm delete" : "Delete"}
-                className={cn(
-                  "transition-all duration-200",
-                  deletingId === shelf.id
-                    ? "text-white bg-red-500 hover:bg-red-600 scale-105"
-                    : "text-red-500 hover:text-red-600 hover:bg-red-500/10",
-                )}
-              >
-                {deletingId === shelf.id ? <Check className="h-4 w-4"/> : <Trash2 className="h-4 w-4"/>}
-              </Button>
-            </div>
-          </div>
-        ))}
+      {/* Controls, hidden from the exported image */}
+      <div className="absolute right-4 top-4 z-20 flex gap-1.5 opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
+        <Button
+          size="icon"
+          variant="secondary"
+          onClick={onExport}
+          aria-label={`Save ${shelf.name} as image`}
+          className="h-9 w-9 backdrop-blur"
+        >
+          <Share className="h-4 w-4" />
+        </Button>
+        <Button
+          size="icon"
+          variant="secondary"
+          onClick={onDelete}
+          aria-label={deleting ? "Confirm delete" : `Delete ${shelf.name}`}
+          className={cn(
+            "h-9 w-9 backdrop-blur transition-all duration-200",
+            deleting
+              ? "scale-105 bg-danger text-danger-foreground hover:brightness-110"
+              : "text-danger hover:bg-danger/10",
+          )}
+        >
+          {deleting ? <Check className="h-4 w-4" /> : <Trash2 className="h-4 w-4" />}
+        </Button>
       </div>
     </div>
   );

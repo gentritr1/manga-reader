@@ -38,12 +38,12 @@ export function UserMenu() {
           href="/login"
           className={buttonClassName({
             variant: "ghost",
-            size: "icon",
-            className: "sm:w-auto sm:px-3",
+            size: "sm",
+            className: "px-2.5 sm:px-3",
           })}
         >
-          <LogIn className="h-4 w-4 sm:hidden" aria-hidden="true" />
-          <span className="sr-only sm:not-sr-only">Log in</span>
+          <LogIn className="h-4 w-4" aria-hidden="true" />
+          Log in
         </Link>
         <Link
           href="/signup"
