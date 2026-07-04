@@ -26,6 +26,7 @@ import {
   DEFAULT_SERIES_TINT,
   readCachedSeriesTint,
 } from "@/lib/extract-tint";
+import { formatReadTimeEstimate } from "@/lib/read-time";
 import { useFavorites } from "@/lib/use-favorites";
 import {
   useMarkReadingRhythmReadToday,
@@ -277,6 +278,10 @@ function ReaderContent(props: Props) {
   const [nextTeaseReady, setNextTeaseReady] = useState(false);
   const rhythmQuery = useReadingRhythm();
   const markReadingRhythmReadToday = useMarkReadingRhythmReadToday();
+  const estimatedReadTime = formatReadTimeEstimate(
+    total,
+    rhythmQuery.data?.averageSecondsPerPage,
+  );
   const latestProgressPageRef = useRef(0);
   const lastProgressFlushRef = useRef(0);
   const readerRootRef = useRef<HTMLDivElement>(null);
@@ -802,6 +807,7 @@ function ReaderContent(props: Props) {
           chapterEndStats={chapterEndStats}
           chapterEndRhythmDays={chapterEndRhythmDays}
           nextTeaseReady={nextTeaseReady}
+          estimatedReadTime={estimatedReadTime}
           onChapterEndVisible={captureChapterEnd}
         />
       ) : (
@@ -818,6 +824,7 @@ function ReaderContent(props: Props) {
           chapterEndStats={chapterEndStats}
           chapterEndRhythmDays={chapterEndRhythmDays}
           nextTeaseReady={nextTeaseReady}
+          estimatedReadTime={estimatedReadTime}
           onChapterEndVisible={captureChapterEnd}
         />
       )}
@@ -908,6 +915,7 @@ function ChapterEndMomentumCard({
   stats,
   todayRhythmDays,
   nextTeaseReady,
+  estimatedReadTime,
   onVisible,
 }: {
   chapterLabel: string;
@@ -919,6 +927,7 @@ function ChapterEndMomentumCard({
   stats: ReaderSessionSnapshot | null;
   todayRhythmDays: number | null;
   nextTeaseReady: boolean;
+  estimatedReadTime: string | null;
   onVisible: () => void;
 }) {
   const router = useRouter();
@@ -945,6 +954,11 @@ function ChapterEndMomentumCard({
       <p className="text-sm font-medium text-reader-muted">
         {formatMomentumStats(stats)}
       </p>
+      {estimatedReadTime && (
+        <p className="mt-1 text-xs font-medium text-reader-muted">
+          {estimatedReadTime} estimated read
+        </p>
+      )}
       <h2 className="mt-2 text-lg font-semibold text-reader-foreground">
         End of {chapterLabel}
       </h2>
@@ -1035,6 +1049,7 @@ function VerticalReader(
     chapterEndStats: ReaderSessionSnapshot | null;
     chapterEndRhythmDays: number | null;
     nextTeaseReady: boolean;
+    estimatedReadTime: string | null;
     onChapterEndVisible: () => void;
   },
 ) {
@@ -1070,6 +1085,7 @@ function VerticalReader(
           stats={props.chapterEndStats}
           todayRhythmDays={props.chapterEndRhythmDays}
           nextTeaseReady={props.nextTeaseReady}
+          estimatedReadTime={props.estimatedReadTime}
           onVisible={props.onChapterEndVisible}
         />
         <InternalAdPreview placement="reader" />
@@ -1206,6 +1222,7 @@ function PagedReader({
   chapterEndStats,
   chapterEndRhythmDays,
   nextTeaseReady,
+  estimatedReadTime,
   onChapterEndVisible,
 }: Props & {
   slide: number;
@@ -1219,6 +1236,7 @@ function PagedReader({
   chapterEndStats: ReaderSessionSnapshot | null;
   chapterEndRhythmDays: number | null;
   nextTeaseReady: boolean;
+  estimatedReadTime: string | null;
   onChapterEndVisible: () => void;
 }) {
   const reduceMotion = useReducedMotion();
@@ -1247,6 +1265,11 @@ function PagedReader({
         </div>
       )}
       <h2 className="text-lg font-semibold">{chapterLabel}</h2>
+      {estimatedReadTime && (
+        <p className="text-sm text-reader-muted">
+          {total} {total === 1 ? "page" : "pages"} · {estimatedReadTime}
+        </p>
+      )}
       {chapterTitle && (
         <p className="text-sm text-reader-muted">{chapterTitle}</p>
       )}
@@ -1273,6 +1296,7 @@ function PagedReader({
         stats={chapterEndStats}
         todayRhythmDays={chapterEndRhythmDays}
         nextTeaseReady={nextTeaseReady}
+        estimatedReadTime={estimatedReadTime}
         onVisible={onChapterEndVisible}
       />
       <InternalAdPreview placement="reader" />

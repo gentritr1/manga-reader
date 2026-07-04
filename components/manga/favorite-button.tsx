@@ -15,6 +15,7 @@ interface Props {
   variant?: "icon" | "full";
   size?: "sm" | "md" | "lg" | "icon";
   className?: string;
+  compactMobileLabel?: boolean;
 }
 
 export function FavoriteButton({
@@ -24,6 +25,7 @@ export function FavoriteButton({
   variant = "icon",
   size = "md",
   className,
+  compactMobileLabel = true,
 }: Props) {
   const router = useRouter();
   const { isFavorite, isAuthenticated, add, remove } = useFavorites();
@@ -85,15 +87,23 @@ export function FavoriteButton({
             className={cn("h-4 w-4", shownActive && "fill-library text-library")}
           />
           {shownActive ? (
-            <>
-              <span className="sm:hidden">Saved</span>
-              <span className="hidden sm:inline">In your library</span>
-            </>
+            compactMobileLabel ? (
+              <>
+                <span className="sm:hidden">Saved</span>
+                <span className="hidden sm:inline">In your library</span>
+              </>
+            ) : (
+              <span>In your library</span>
+            )
           ) : (
-            <>
-              <span className="sm:hidden">Save</span>
-              <span className="hidden sm:inline">Add to library</span>
-            </>
+            compactMobileLabel ? (
+              <>
+                <span className="sm:hidden">Save</span>
+                <span className="hidden sm:inline">Add to library</span>
+              </>
+            ) : (
+              <span>Add to library</span>
+            )
           )}
         </motion.span>
       </Button>

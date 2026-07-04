@@ -224,8 +224,14 @@ async function getLatestUpdatesUncached(limit = 24): Promise<SimpleManga[]> {
 
   const seen = new Set<string>();
   const orderedIds: string[] = [];
+  const latestUploadedAtById = new Map<string, string>();
   for (const ch of json.data as {
-    attributes?: { externalUrl?: string | null; pages?: number };
+    attributes?: {
+      externalUrl?: string | null;
+      pages?: number;
+      readableAt?: string | null;
+      publishAt?: string | null;
+    };
     relationships?: { id: string; type: string }[];
   }[]) {
     // Skip licensed/external chapters — these can't be read in-app.
@@ -234,15 +240,28 @@ async function getLatestUpdatesUncached(limit = 24): Promise<SimpleManga[]> {
     if (mangaRel && !seen.has(mangaRel.id)) {
       seen.add(mangaRel.id);
       orderedIds.push(mangaRel.id);
+      latestUploadedAtById.set(
+        mangaRel.id,
+        ch.attributes?.readableAt ?? ch.attributes?.publishAt ?? "",
+      );
     }
     if (orderedIds.length >= limit) break;
   }
 
   const manga = await getMangaByIds(orderedIds);
   const byId = new Map(manga.map((m) => [m.id, m]));
-  return orderedIds
-    .map((id) => byId.get(id))
-    .filter((m): m is SimpleManga => Boolean(m));
+  const orderedManga: SimpleManga[] = [];
+
+  for (const id of orderedIds) {
+    const item = byId.get(id);
+    if (!item) continue;
+    orderedManga.push({
+      ...item,
+      latestUploadedAt: latestUploadedAtById.get(id) || null,
+    });
+  }
+
+  return orderedManga;
 }
 
 export const getLatestUpdates = unstable_cache(

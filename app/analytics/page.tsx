@@ -1,8 +1,8 @@
 import { auth } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { AnalyticsClient } from "./analytics-client";
 import { Metadata } from "next";
+import { getUserReadingAnalytics } from "@/lib/reading-analytics";
 
 export const metadata: Metadata = {
   title: "Chapter Pulse",
@@ -14,30 +14,10 @@ export default async function AnalyticsPage() {
     redirect("/login?callbackUrl=/analytics");
   }
 
-  const sessions = await prisma.readingSession.findMany({
-    where: { userId: session.user.id },
-  });
-
-  const totalPages = sessions.reduce((acc, curr) => acc + curr.pagesRead, 0);
-  const totalSeconds = sessions.reduce((acc, curr) => acc + curr.durationSeconds, 0);
-  
-  // Aggregate top manga by pages read
-  const mangaMap: Record<string, { title: string; pages: number }> = {};
-  sessions.forEach(s => {
-    if (!mangaMap[s.mangaId]) {
-      mangaMap[s.mangaId] = { title: s.mangaTitle, pages: 0 };
-    }
-    mangaMap[s.mangaId].pages += s.pagesRead;
-  });
-
-  const topManga = Object.values(mangaMap)
-    .sort((a, b) => b.pages - a.pages)
-    .slice(0, 3);
-
-  const averageSpeed = totalPages > 0 ? (totalSeconds / totalPages).toFixed(1) : "0";
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const formattedTime = hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+  const analytics = await getUserReadingAnalytics(session.user.id);
+  const averageSpeed = analytics.averageSecondsPerPage
+    ? analytics.averageSecondsPerPage.toFixed(1)
+    : "0";
 
   return (
     <main className="flex-1 w-full bg-surface-canvas min-h-screen">
@@ -50,12 +30,11 @@ export default async function AnalyticsPage() {
             Your private reading recap, built from the chapters you actually open.
           </p>
         </div>
-        
-        <AnalyticsClient 
-          totalPages={totalPages} 
-          formattedTime={formattedTime} 
+        <AnalyticsClient
+          totalPages={analytics.totalPages}
+          formattedTime={analytics.formattedTime}
           averageSpeed={averageSpeed}
-          topManga={topManga}
+          topManga={analytics.topManga}
           name={session.user.name || "Reader"}
         />
       </div>

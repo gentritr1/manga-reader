@@ -18,6 +18,7 @@ export interface SimpleManga {
   tags: string[];
   author: string | null;
   lastChapter: string | null;
+  latestUploadedAt?: string | null;
 }
 
 export interface SimpleChapter {

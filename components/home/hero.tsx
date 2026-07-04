@@ -49,7 +49,7 @@ export function Hero({
         </div>
       )}
       <div className="relative z-10 mx-auto grid w-full max-w-7xl min-w-0 gap-8 px-4 py-8 sm:min-h-[500px] sm:gap-12 sm:px-6 sm:py-12 lg:grid-cols-[minmax(0,1fr)_minmax(340px,420px)] lg:items-center lg:px-8 lg:py-6">
-        <div className="yomi-rise-slow relative mx-auto w-[12rem] sm:w-[19rem] lg:order-2 lg:w-[18rem]">
+        <div className="yomi-rise-slow relative mx-auto w-[min(13rem,58vw)] sm:w-[19rem] lg:order-2 lg:w-[18rem]">
           <CoverCollage
             cover={cover}
             mangaId={manga.id}
@@ -151,13 +151,13 @@ function CoverCollage({
       {sides[0] && (
         <CollageSide
           cover={sides[0]}
-          className="absolute inset-y-6 left-0 z-0 w-[78%] -translate-x-[26%] -rotate-[10deg]"
+          className="absolute inset-y-7 left-0 z-0 w-[74%] -translate-x-[18%] -rotate-[8deg] sm:inset-y-6 sm:w-[78%] sm:-translate-x-[26%] sm:-rotate-[10deg]"
         />
       )}
       {sides[1] && (
         <CollageSide
           cover={sides[1]}
-          className="absolute inset-y-6 right-0 z-0 w-[78%] translate-x-[26%] rotate-[10deg]"
+          className="absolute inset-y-7 right-0 z-0 w-[74%] translate-x-[18%] rotate-[8deg] sm:inset-y-6 sm:w-[78%] sm:translate-x-[26%] sm:rotate-[10deg]"
         />
       )}
       <CoverFrame

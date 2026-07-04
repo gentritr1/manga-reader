@@ -16,6 +16,7 @@ import { prisma } from "@/lib/prisma";
 import { AddToShelfButton } from "@/components/manga/add-to-shelf-button";
 import { SeriesTintScope } from "@/components/manga/series-tint-scope";
 import { SeriesTintCoverImage } from "@/components/manga/series-tint-cover-image";
+import { getUserReadingAnalytics } from "@/lib/reading-analytics";
 
 export const revalidate = 900;
 
@@ -61,7 +62,7 @@ export default async function MangaDetailPage({
   const { id } = await params;
   const session = await auth();
 
-  const [manga, feed, shelves] = await Promise.all([
+  const [manga, feed, shelves, readingAnalytics] = await Promise.all([
     getManga(id),
     getChapters(id, { limit: 200, order: "desc" }),
     session?.user?.id
@@ -71,6 +72,9 @@ export default async function MangaDetailPage({
           orderBy: { createdAt: "asc" },
         })
       : Promise.resolve([]),
+    session?.user?.id
+      ? getUserReadingAnalytics(session.user.id)
+      : Promise.resolve(null),
   ]);
 
   if (!manga) notFound();
@@ -119,33 +123,40 @@ export default async function MangaDetailPage({
         </div>
 
         <div className="relative mx-auto max-w-5xl px-4 pb-6 pt-8">
-          <div className="flex flex-col gap-5 min-[480px]:flex-row min-[480px]:gap-6">
-            <CoverTransitionElement
-              mangaId={manga.id}
-              active
-              className="relative aspect-[2/3] w-36 shrink-0 overflow-hidden rounded-cover border border-line-subtle shadow-2xl min-[480px]:w-44"
-            >
-              {cover ? (
-                <SeriesTintCoverImage
-                  mangaId={manga.id}
-                  src={cover}
-                  alt={manga.title}
-                  fill
-                  loading="eager"
-                  fetchPriority="high"
-                  sizes="(max-width: 480px) 144px, 176px"
-                  className="object-cover"
-                />
-              ) : (
-                <div className="grid h-full place-items-center text-xs text-muted-foreground">
-                  No cover
-                </div>
-              )}
-            </CoverTransitionElement>
+          <div className="flex flex-col items-center gap-5 text-center min-[480px]:flex-row min-[480px]:items-start min-[480px]:gap-6 min-[480px]:text-left">
+            <div className="relative flex w-full justify-center min-[480px]:w-auto min-[480px]:justify-start">
+              <div
+                aria-hidden="true"
+                data-yomi-series-tint-consumer="detail-cover-glow"
+                className="absolute left-1/2 top-1/2 h-52 w-52 -translate-x-1/2 -translate-y-1/2 rounded-full opacity-30 blur-3xl [background:var(--series-tint)] min-[480px]:hidden"
+              />
+              <CoverTransitionElement
+                mangaId={manga.id}
+                active
+                className="relative aspect-[2/3] w-44 shrink-0 overflow-hidden rounded-cover border border-line-subtle bg-surface-muted shadow-2xl"
+              >
+                {cover ? (
+                  <SeriesTintCoverImage
+                    mangaId={manga.id}
+                    src={cover}
+                    alt={manga.title}
+                    fill
+                    loading="eager"
+                    fetchPriority="high"
+                    sizes="176px"
+                    className="object-cover"
+                  />
+                ) : (
+                  <div className="grid h-full place-items-center text-xs text-muted-foreground">
+                    No cover
+                  </div>
+                )}
+              </CoverTransitionElement>
+            </div>
 
             <div className="min-w-0 flex-1 space-y-4">
               <div>
-                <h1 className="text-xl font-extrabold tracking-tight min-[480px]:text-2xl sm:text-3xl">
+                <h1 className="mx-auto max-w-[24rem] text-2xl font-extrabold tracking-tight [text-wrap:balance] min-[480px]:mx-0 min-[480px]:max-w-none min-[480px]:text-2xl sm:text-3xl">
                   {manga.title}
                 </h1>
                 {manga.author && (
@@ -155,7 +166,7 @@ export default async function MangaDetailPage({
                 )}
               </div>
 
-              <div className="flex flex-wrap items-center gap-1.5 text-sm font-medium text-muted-foreground">
+              <div className="flex flex-wrap items-center justify-center gap-1.5 text-sm font-medium text-muted-foreground min-[480px]:justify-start">
                 {[
                   manga.status ? (
                     <span key="status" className="capitalize text-foreground">
@@ -174,7 +185,7 @@ export default async function MangaDetailPage({
                 ))}
               </div>
 
-              <div className="flex flex-wrap gap-2">
+              <div className="mx-auto flex w-full max-w-sm flex-wrap justify-center gap-2 min-[480px]:mx-0 min-[480px]:max-w-none min-[480px]:justify-start">
                 {firstChapter && (
                   <Link
                     href={`/read/${firstChapter.id}`}
@@ -230,7 +241,10 @@ export default async function MangaDetailPage({
               </p>
             </div>
           )}
-          <ChapterList chapters={feed.chapters} />
+          <ChapterList
+            chapters={feed.chapters}
+            secondsPerPage={readingAnalytics?.averageSecondsPerPage}
+          />
         </div>
       </div>
     </div>

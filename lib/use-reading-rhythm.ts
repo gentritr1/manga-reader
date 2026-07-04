@@ -8,6 +8,7 @@ export interface ReadingRhythmData {
   rhythmDays: number;
   readToday: boolean;
   tickedTodayRhythmDays: number | null;
+  averageSecondsPerPage: number | null;
 }
 
 const RHYTHM_QUERY_KEY = ["reading-rhythm"] as const;

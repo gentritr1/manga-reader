@@ -2,6 +2,7 @@ import { Fragment } from "react";
 import Link from "next/link";
 import { ChevronRight, ExternalLink } from "lucide-react";
 import { isReadable, type SimpleChapter } from "@/lib/mangadex";
+import { formatReadTimeEstimate } from "@/lib/read-time";
 import { InternalAdPreview } from "@/components/ads/internal-ad-preview";
 
 const DETAIL_PREVIEW_AFTER_CHAPTERS = 8;
@@ -13,16 +14,31 @@ function chapterLabel(c: SimpleChapter) {
   return parts.join(" · ");
 }
 
-function Meta({ c }: { c: SimpleChapter }) {
+function Meta({
+  c,
+  secondsPerPage,
+}: {
+  c: SimpleChapter;
+  secondsPerPage?: number | null;
+}) {
+  const estimate = formatReadTimeEstimate(c.pages, secondsPerPage);
+
   return (
     <p className="mt-0.5 truncate text-xs text-muted-foreground">
       {c.scanlationGroup ?? "Unknown group"}
       {c.publishedAt ? ` · ${new Date(c.publishedAt).toLocaleDateString()}` : ""}
+      {estimate ? ` · ${estimate}` : ""}
     </p>
   );
 }
 
-export function ChapterList({ chapters }: { chapters: SimpleChapter[] }) {
+export function ChapterList({
+  chapters,
+  secondsPerPage,
+}: {
+  chapters: SimpleChapter[];
+  secondsPerPage?: number | null;
+}) {
   if (chapters.length === 0) {
     return (
       <p className="py-6 text-center text-sm text-muted-foreground">
@@ -43,7 +59,7 @@ export function ChapterList({ chapters }: { chapters: SimpleChapter[] }) {
                 <span className="text-muted-foreground"> · {c.title}</span>
               ) : null}
             </p>
-            <Meta c={c} />
+            <Meta c={c} secondsPerPage={secondsPerPage} />
           </div>
         );
 
