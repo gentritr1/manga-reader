@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Columns2,
   Rows3,
+  X,
 } from "lucide-react";
 import { InternalAdPreview } from "@/components/ads/internal-ad-preview";
 import { buttonClassName } from "@/components/ui/button";
@@ -17,6 +18,10 @@ import { cn } from "@/lib/utils";
 
 type Mode = "vertical" | "paged";
 const MAX_IMAGE_RETRIES = 2;
+const PROGRESS_STORAGE_PREFIX = "yomi-progress:";
+const SERVER_PROGRESS_FLUSH_MS = 60_000;
+const RESUME_PROMPT_MIN_AGE_MS = 30_000;
+const RESUME_PROMPT_AUTO_DISMISS_MS = 6_000;
 
 interface ReaderSessionState {
   startedAt: number;
@@ -24,6 +29,26 @@ interface ReaderSessionState {
   pagesSeen: Set<number>;
   maxPagedPage: number;
   flushed: boolean;
+}
+
+interface StoredChapterProgress {
+  mangaId?: string;
+  chapterId?: string;
+  title?: string;
+  coverUrl?: string | null;
+  chapter?: string | null;
+  page: number;
+  totalPages: number | null;
+  updatedAt: number;
+}
+
+interface StoredProgressMetadata {
+  mangaId: string;
+  chapterId: string;
+  title: string;
+  coverUrl?: string | null;
+  chapter?: string | null;
+  totalPages?: number;
 }
 
 interface Props {
@@ -38,6 +63,9 @@ interface Props {
   prevId: string | null;
   nextId: string | null;
   recap?: string | null;
+  initialProgressPage?: number | null;
+  initialProgressTotalPages?: number | null;
+  initialProgressUpdatedAt?: string | null;
 }
 
 function chapterPageProxyUrl(
@@ -61,6 +89,107 @@ function allowsSpeculativeImagePreload(): boolean {
   );
 }
 
+function progressStorageKey(chapterId: string) {
+  return `${PROGRESS_STORAGE_PREFIX}${chapterId}`;
+}
+
+function safeTotalPages(total: number) {
+  if (!Number.isInteger(total) || total < 1 || total > 2000) return undefined;
+  return total;
+}
+
+function normalizeReadablePage(page: number, total: number) {
+  if (!Number.isFinite(page) || total < 1) return null;
+  const max = Math.min(total, 2000);
+  const normalized = Math.trunc(page);
+  if (normalized < 1) return null;
+  return Math.min(normalized, max);
+}
+
+function readStoredProgress(
+  chapterId: string,
+  total: number,
+): StoredChapterProgress | null {
+  try {
+    const raw = localStorage.getItem(progressStorageKey(chapterId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<StoredChapterProgress>;
+    const page = normalizeReadablePage(Number(parsed.page), total);
+    const updatedAt = Number(parsed.updatedAt);
+    if (!page || !Number.isFinite(updatedAt)) return null;
+    const totalPages =
+      typeof parsed.totalPages === "number" && parsed.totalPages >= 1
+        ? Math.min(parsed.totalPages, 2000)
+        : null;
+    return {
+      mangaId: typeof parsed.mangaId === "string" ? parsed.mangaId : undefined,
+      chapterId:
+        typeof parsed.chapterId === "string" ? parsed.chapterId : chapterId,
+      title: typeof parsed.title === "string" ? parsed.title : undefined,
+      coverUrl:
+        typeof parsed.coverUrl === "string" || parsed.coverUrl === null
+          ? parsed.coverUrl
+          : undefined,
+      chapter: typeof parsed.chapter === "string" ? parsed.chapter : undefined,
+      page,
+      totalPages,
+      updatedAt,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredProgress(
+  chapterId: string,
+  page: number,
+  totalPages: number | undefined,
+  metadata: StoredProgressMetadata,
+) {
+  try {
+    localStorage.setItem(
+      progressStorageKey(chapterId),
+      JSON.stringify({
+        ...metadata,
+        page,
+        totalPages: totalPages ?? null,
+        updatedAt: Date.now(),
+      }),
+    );
+  } catch {}
+}
+
+function writeStoredProgressMetadata(
+  chapterId: string,
+  metadata: StoredProgressMetadata,
+  fallbackPage: number,
+  fallbackUpdatedAt: number,
+) {
+  try {
+    const existing = localStorage.getItem(progressStorageKey(chapterId));
+    const parsed = existing
+      ? (JSON.parse(existing) as Partial<StoredChapterProgress>)
+      : null;
+    const page =
+      normalizeReadablePage(
+        Number(parsed?.page ?? fallbackPage),
+        metadata.totalPages ?? 2000,
+      ) ?? 1;
+    const updatedAt = Number(parsed?.updatedAt ?? fallbackUpdatedAt);
+
+    localStorage.setItem(
+      progressStorageKey(chapterId),
+      JSON.stringify({
+        ...parsed,
+        ...metadata,
+        page,
+        totalPages: metadata.totalPages ?? parsed?.totalPages ?? null,
+        updatedAt: Number.isFinite(updatedAt) ? updatedAt : Date.now(),
+      }),
+    );
+  } catch {}
+}
+
 export function Reader(props: Props) {
   return <ReaderContent key={props.chapterId} {...props} />;
 }
@@ -81,6 +210,9 @@ function ReaderContent(props: Props) {
   const [scrollProgress, setScrollProgress] = useState(0);
   // One-time hint so the tap-to-hide-controls gesture is discoverable.
   const [showHint, setShowHint] = useState(false);
+  const [resumePromptPage, setResumePromptPage] = useState<number | null>(null);
+  const latestProgressPageRef = useRef(0);
+  const lastProgressFlushRef = useRef(0);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -123,6 +255,75 @@ function ReaderContent(props: Props) {
     flushed: true,
   });
 
+  const buildProgressMetadata = useCallback((): StoredProgressMetadata | null => {
+      if (!mangaId) return null;
+      return {
+        mangaId,
+        chapterId: props.chapterId,
+        title: props.mangaTitle,
+        coverUrl: props.coverUrl ?? undefined,
+        chapter: props.chapterLabel.replace(/^Chapter\s*/i, "") || undefined,
+        totalPages: safeTotalPages(total),
+      };
+    },
+    [
+      mangaId,
+      props.chapterId,
+      props.mangaTitle,
+      props.coverUrl,
+      props.chapterLabel,
+      total,
+    ],
+  );
+
+  const buildProgressPayload = useCallback(
+    (page: number) => {
+      const metadata = buildProgressMetadata();
+      if (!metadata) return null;
+      return { ...metadata, page };
+    },
+    [buildProgressMetadata],
+  );
+
+  const flushReadingProgress = useCallback(
+    (force = false) => {
+      const page = latestProgressPageRef.current;
+      if (page <= 1) return;
+
+      const now = Date.now();
+      if (!force && now - lastProgressFlushRef.current < SERVER_PROGRESS_FLUSH_MS) {
+        return;
+      }
+
+      const payload = buildProgressPayload(page);
+      if (!payload) return;
+
+      lastProgressFlushRef.current = now;
+      fetch("/api/history", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        keepalive: true,
+        body: JSON.stringify(payload),
+      }).catch(() => {});
+    },
+    [buildProgressPayload],
+  );
+
+  const recordPageProgress = useCallback(
+    (pageNumber: number) => {
+      const page = normalizeReadablePage(pageNumber, total);
+      if (!page || page <= 1) return;
+
+      const metadata = buildProgressMetadata();
+      if (!metadata) return;
+
+      latestProgressPageRef.current = page;
+      writeStoredProgress(props.chapterId, page, safeTotalPages(total), metadata);
+      flushReadingProgress();
+    },
+    [buildProgressMetadata, flushReadingProgress, props.chapterId, total],
+  );
+
   useEffect(() => {
     sessionRef.current = {
       startedAt: Date.now(),
@@ -134,6 +335,69 @@ function ReaderContent(props: Props) {
   }, [props.chapterId]);
 
   useEffect(() => {
+    latestProgressPageRef.current = 0;
+    lastProgressFlushRef.current = Date.now();
+  }, [props.chapterId]);
+
+  useEffect(() => {
+    const onPageHide = () => flushReadingProgress(true);
+    window.addEventListener("pagehide", onPageHide);
+    return () => {
+      window.removeEventListener("pagehide", onPageHide);
+      flushReadingProgress(true);
+    };
+  }, [flushReadingProgress]);
+
+  useEffect(() => {
+    const localProgress = readStoredProgress(props.chapterId, total);
+    const serverUpdatedAt = props.initialProgressUpdatedAt
+      ? Date.parse(props.initialProgressUpdatedAt)
+      : NaN;
+    const serverPage =
+      typeof props.initialProgressPage === "number"
+        ? normalizeReadablePage(props.initialProgressPage, total)
+        : null;
+    const serverProgress =
+      serverPage && Number.isFinite(serverUpdatedAt)
+        ? {
+            page: serverPage,
+            totalPages: props.initialProgressTotalPages ?? null,
+            updatedAt: serverUpdatedAt,
+          }
+        : null;
+    const savedProgress = [localProgress, serverProgress]
+      .filter((progress): progress is StoredChapterProgress => Boolean(progress))
+      .sort((a, b) => b.updatedAt - a.updatedAt)[0];
+
+    if (!savedProgress) return;
+    const isFinished = savedProgress.page >= total;
+    const isOldEnough =
+      Date.now() - savedProgress.updatedAt > RESUME_PROMPT_MIN_AGE_MS;
+
+    if (savedProgress.page > 1 && !isFinished && isOldEnough) {
+      let dismissTimer: ReturnType<typeof setTimeout> | undefined;
+      const showTimer = setTimeout(() => {
+        setResumePromptPage(savedProgress.page);
+        dismissTimer = setTimeout(
+          () => setResumePromptPage(null),
+          RESUME_PROMPT_AUTO_DISMISS_MS,
+        );
+      }, 0);
+
+      return () => {
+        clearTimeout(showTimer);
+        if (dismissTimer) clearTimeout(dismissTimer);
+      };
+    }
+  }, [
+    props.chapterId,
+    props.initialProgressPage,
+    props.initialProgressTotalPages,
+    props.initialProgressUpdatedAt,
+    total,
+  ]);
+
+  useEffect(() => {
     sessionRef.current.mode = mode;
   }, [mode]);
 
@@ -143,15 +407,19 @@ function ReaderContent(props: Props) {
     if (page > 0 && page > sessionRef.current.maxPagedPage) {
       sessionRef.current.maxPagedPage = page;
     }
-  }, [mode, slide, total]);
+    if (page > 1 && page <= total) {
+      recordPageProgress(page);
+    }
+  }, [mode, recordPageProgress, slide, total]);
 
   const markVerticalPageVisible = useCallback(
     (pageNumber: number) => {
       if (pageNumber < 1 || pageNumber > total) return;
       sessionRef.current.pagesSeen.add(pageNumber);
       setCurrentPage(pageNumber);
+      recordPageProgress(pageNumber);
     },
-    [total],
+    [recordPageProgress, total],
   );
 
   const flushReadingSession = useCallback(() => {
@@ -226,19 +494,33 @@ function ReaderContent(props: Props) {
 
   // Record reading progress.
   useEffect(() => {
-    if (!mangaId) return;
+    const metadata = buildProgressMetadata();
+    if (!metadata) return;
+
+    const serverUpdatedAt = props.initialProgressUpdatedAt
+      ? Date.parse(props.initialProgressUpdatedAt)
+      : NaN;
+    const fallbackPage =
+      normalizeReadablePage(props.initialProgressPage ?? 1, total) ?? 1;
+    writeStoredProgressMetadata(
+      props.chapterId,
+      metadata,
+      fallbackPage,
+      Number.isFinite(serverUpdatedAt) ? serverUpdatedAt : Date.now(),
+    );
+
     fetch("/api/history", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        mangaId,
-        chapterId: props.chapterId,
-        title: props.mangaTitle,
-        coverUrl: props.coverUrl ?? undefined,
-        chapter: props.chapterLabel.replace(/^Chapter\s*/i, "") || undefined,
-      }),
+      body: JSON.stringify(metadata),
     }).catch(() => {});
-  }, [mangaId, props.chapterId, props.mangaTitle, props.coverUrl, props.chapterLabel]);
+  }, [
+    buildProgressMetadata,
+    props.chapterId,
+    props.initialProgressPage,
+    props.initialProgressUpdatedAt,
+    total,
+  ]);
 
   const goNextChapter = useCallback(() => {
     if (nextId) router.push(`/read/${nextId}`);
@@ -246,6 +528,32 @@ function ReaderContent(props: Props) {
   const goPrevChapter = useCallback(() => {
     if (prevId) router.push(`/read/${prevId}`);
   }, [prevId, router]);
+
+  const resumeAtPage = useCallback(
+    (pageNumber: number) => {
+      const page = normalizeReadablePage(pageNumber, total);
+      if (!page) return;
+
+      setResumePromptPage(null);
+      setCurrentPage(page);
+      sessionRef.current.pagesSeen.add(page);
+      recordPageProgress(page);
+
+      if (mode === "paged") {
+        setSlide(page);
+        return;
+      }
+
+      const prefersReducedMotion = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+      document.getElementById(`reader-page-${page}`)?.scrollIntoView({
+        block: "start",
+        behavior: prefersReducedMotion ? "auto" : "smooth",
+      });
+    },
+    [mode, recordPageProgress, total],
+  );
 
   // Paged navigation + keyboard.
   const next = useCallback(() => {
@@ -385,6 +693,31 @@ function ReaderContent(props: Props) {
           </p>
         </div>
       )}
+
+      {resumePromptPage && (
+        <div className="fixed inset-x-0 bottom-20 z-50 flex justify-center px-4">
+          <div className="flex w-full max-w-sm items-center gap-2 rounded-full border border-reader-line bg-reader-chrome p-2 text-reader-foreground shadow-2xl backdrop-blur">
+            <p className="min-w-0 flex-1 px-2 text-sm font-medium">
+              Resume at page {resumePromptPage}
+            </p>
+            <button
+              type="button"
+              onClick={() => resumeAtPage(resumePromptPage)}
+              className="h-9 rounded-full bg-action-primary px-3 text-sm font-semibold text-action-primary-foreground transition hover:brightness-110 focus-visible:ring-reader-focus"
+            >
+              Resume
+            </button>
+            <button
+              type="button"
+              aria-label="Dismiss resume prompt"
+              onClick={() => setResumePromptPage(null)}
+              className="grid h-9 w-9 place-items-center rounded-full text-reader-muted transition hover:bg-reader-control-hover hover:text-reader-foreground focus-visible:ring-reader-focus"
+            >
+              <X className="h-4 w-4" aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -516,7 +849,11 @@ function ReaderPageImage({
       : currentSrc;
 
   return (
-    <div ref={pageRef} className="relative flex w-full justify-center overflow-hidden bg-reader-canvas">
+    <div
+      id={`reader-page-${pageNumber}`}
+      ref={pageRef}
+      className="relative flex w-full justify-center overflow-hidden bg-reader-canvas"
+    >
       <img
         key={`${usingFallback ? "fallback" : "direct"}-${retry}`}
         src={imageSrc}

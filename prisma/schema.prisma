@@ -89,6 +89,8 @@ model ReadingProgress {
   title     String
   coverUrl  String?
   chapter   String?
+  page      Int?
+  totalPages Int?
   updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 

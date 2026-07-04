@@ -64,14 +64,22 @@ export default async function ReadPage({
   }
 
   let recap = null;
+  let initialProgressPage: number | null = null;
+  let initialProgressTotalPages: number | null = null;
+  let initialProgressUpdatedAt: string | null = null;
   if (session?.user?.id && mangaId) {
     const progress = await prisma.readingProgress.findUnique({
       where: { userId_mangaId: { userId: session.user.id, mangaId } },
     });
     if (progress) {
+      if (progress.chapterId === chapterId) {
+        initialProgressPage = progress.page;
+        initialProgressTotalPages = progress.totalPages;
+        initialProgressUpdatedAt = progress.updatedAt.toISOString();
+      }
       const daysSince = (new Date().getTime() - progress.updatedAt.getTime()) / (1000 * 60 * 60 * 24);
       if (daysSince > 7) {
-        recap = `Welcome back! It's been ${Math.floor(daysSince)} days since you last read ${progress.chapter ? `Chapter ${progress.chapter}` : "a chapter"}. Let's jump back into the action.`;
+        recap = `Welcome back. It's been ${Math.floor(daysSince)} days since you last read ${progress.chapter ? `Chapter ${progress.chapter}` : "a chapter"}. Pick up from there.`;
       }
     }
   }
@@ -93,6 +101,9 @@ export default async function ReadPage({
       prevId={prevId}
       nextId={nextId}
       recap={recap}
+      initialProgressPage={initialProgressPage}
+      initialProgressTotalPages={initialProgressTotalPages}
+      initialProgressUpdatedAt={initialProgressUpdatedAt}
     />
   );
 }

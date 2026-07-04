@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { ArrowRight, LogIn, Play } from "lucide-react";
@@ -10,12 +11,75 @@ import { Section } from "@/components/manga/section";
 import { buttonClassName } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 
+const PROGRESS_STORAGE_PREFIX = "yomi-progress:";
+
 interface HistoryItem {
   mangaId: string;
   chapterId: string;
   title: string;
   coverUrl: string | null;
   chapter: string | null;
+  page: number | null;
+  totalPages: number | null;
+  updatedAt?: string | number;
+}
+
+function readLocalHistory(): HistoryItem[] {
+  if (typeof window === "undefined") return [];
+
+  const items: HistoryItem[] = [];
+  for (let index = 0; index < localStorage.length; index += 1) {
+    const key = localStorage.key(index);
+    if (!key?.startsWith(PROGRESS_STORAGE_PREFIX)) continue;
+
+    try {
+      const parsed = JSON.parse(
+        localStorage.getItem(key) ?? "{}",
+      ) as Partial<HistoryItem>;
+      const page = typeof parsed.page === "number" ? parsed.page : NaN;
+      const totalPages =
+        typeof parsed.totalPages === "number" ? parsed.totalPages : NaN;
+      if (
+        typeof parsed.mangaId !== "string" ||
+        typeof parsed.chapterId !== "string" ||
+        typeof parsed.title !== "string" ||
+        !Number.isFinite(page)
+      ) {
+        continue;
+      }
+
+      items.push({
+        mangaId: parsed.mangaId,
+        chapterId: parsed.chapterId,
+        title: parsed.title,
+        coverUrl:
+          typeof parsed.coverUrl === "string" || parsed.coverUrl === null
+            ? parsed.coverUrl
+            : null,
+        chapter: typeof parsed.chapter === "string" ? parsed.chapter : null,
+        page: Math.max(1, Math.trunc(page)),
+        totalPages: Number.isFinite(totalPages)
+          ? Math.max(1, Math.trunc(totalPages))
+          : null,
+        updatedAt: parsed.updatedAt,
+      });
+    } catch {}
+  }
+
+  const seenManga = new Set<string>();
+  return items
+    .sort((a, b) => Number(b.updatedAt ?? 0) - Number(a.updatedAt ?? 0))
+    .filter((item) => {
+      if (seenManga.has(item.mangaId)) return false;
+      seenManga.add(item.mangaId);
+      return true;
+    })
+    .slice(0, 12);
+}
+
+function progressPercent(item: HistoryItem) {
+  if (!item.page || !item.totalPages) return null;
+  return Math.min(100, Math.max(0, (item.page / item.totalPages) * 100));
 }
 
 export function ContinueReading({
@@ -24,15 +88,26 @@ export function ContinueReading({
   starterManga?: SimpleManga[];
 }) {
   const { status } = useSession();
+  const [localHistory, setLocalHistory] = useState<HistoryItem[]>([]);
   const { data = [], isLoading } = useQuery({
     queryKey: ["history"],
     enabled: status === "authenticated",
+    staleTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false,
     queryFn: async (): Promise<HistoryItem[]> => {
       const res = await fetch("/api/history");
       if (!res.ok) return [];
       return (await res.json()).history as HistoryItem[];
     },
   });
+
+  useEffect(() => {
+    if (status === "authenticated") return;
+    const timer = window.setTimeout(() => {
+      setLocalHistory(readLocalHistory());
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [status]);
 
   if (status === "authenticated" && isLoading) {
     return (
@@ -52,7 +127,9 @@ export function ContinueReading({
     );
   }
 
-  if (status !== "authenticated" || data.length === 0) {
+  const history = status === "authenticated" ? data : localHistory;
+
+  if (history.length === 0) {
     return (
       <EmptyContinueReading
         authenticated={status === "authenticated"}
@@ -69,37 +146,63 @@ export function ContinueReading({
     >
       <div className="relative">
         <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar">
-          {data.map((item) => (
-            <Link
-              key={item.mangaId}
-              href={`/read/${item.chapterId}`}
-              prefetch={false}
-              className="group relative flex min-h-28 w-64 shrink-0 gap-3 overflow-hidden rounded-card border border-line-subtle bg-surface-panel p-3 transition hover:-translate-y-0.5 hover:border-brand-primary/45 hover:[box-shadow:var(--elevation-hover)] focus-visible:border-brand-primary"
-            >
-              <div className="relative aspect-[2/3] w-14 shrink-0 overflow-hidden rounded-md bg-surface-muted">
-                {item.coverUrl && (
-                  <MangaCoverImage
-                    src={item.coverUrl}
-                    alt={`${item.title} cover`}
-                    fill
-                    sizes="56px"
-                    className="object-cover"
-                  />
-                )}
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="line-clamp-2 text-sm font-medium">{item.title}</p>
-                {item.chapter && (
-                  <p className="mt-1 text-xs text-content-secondary">
-                    Chapter {item.chapter}
+          {history.map((item) => {
+            const percent = progressPercent(item);
+            return (
+              <Link
+                key={item.mangaId}
+                href={`/read/${item.chapterId}`}
+                prefetch={false}
+                className="group relative flex min-h-28 w-64 shrink-0 gap-3 overflow-hidden rounded-card border border-line-subtle bg-surface-panel p-3 transition hover:-translate-y-0.5 hover:border-brand-primary/45 hover:[box-shadow:var(--elevation-hover)] focus-visible:border-brand-primary"
+              >
+                <div className="relative aspect-[2/3] w-14 shrink-0 overflow-hidden rounded-md bg-surface-muted">
+                  {item.coverUrl && (
+                    <MangaCoverImage
+                      src={item.coverUrl}
+                      alt={`${item.title} cover`}
+                      fill
+                      sizes="56px"
+                      className="object-cover"
+                    />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="line-clamp-2 text-sm font-medium">
+                    {item.title}
                   </p>
-                )}
-                <span className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-brand-primary">
-                  <Play className="h-3 w-3 fill-current" /> Resume chapter
-                </span>
-              </div>
-            </Link>
-          ))}
+                  {item.chapter && (
+                    <p className="mt-1 text-xs text-content-secondary">
+                      Chapter {item.chapter}
+                    </p>
+                  )}
+                  {item.page && (
+                    <p className="mt-1 text-xs text-content-secondary">
+                      Page {item.page}
+                      {item.totalPages ? ` of ${item.totalPages}` : ""}
+                    </p>
+                  )}
+                  {percent !== null && item.totalPages && item.page && (
+                    <div
+                      role="progressbar"
+                      aria-label={`${item.title} reading progress`}
+                      aria-valuemin={1}
+                      aria-valuemax={item.totalPages}
+                      aria-valuenow={Math.min(item.page, item.totalPages)}
+                      className="mt-2 h-1 overflow-hidden rounded-full bg-library-surface"
+                    >
+                      <div
+                        className="h-full rounded-full bg-library"
+                        style={{ width: `${percent}%` }}
+                      />
+                    </div>
+                  )}
+                  <span className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-brand-primary">
+                    <Play className="h-3 w-3 fill-current" /> Resume chapter
+                  </span>
+                </div>
+              </Link>
+            );
+          })}
         </div>
         <div
           className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-surface-canvas to-transparent sm:hidden"
