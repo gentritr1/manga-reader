@@ -58,7 +58,7 @@ export function Hero({
           />
         </div>
 
-        <div className="yomi-rise yomi-delay-1 mx-0 w-full min-w-0 max-w-[22rem] space-y-4 text-center sm:mx-auto sm:max-w-3xl sm:space-y-6 lg:order-1 lg:mx-0 lg:text-left">
+        <div className="yomi-rise yomi-delay-1 mx-auto w-full min-w-0 max-w-[22rem] space-y-4 text-center sm:max-w-3xl sm:space-y-6 lg:order-1 lg:mx-0 lg:text-left">
           <div className="flex flex-wrap items-center justify-center gap-2 lg:justify-start">
             <Badge variant="inverse" className="w-fit px-3 py-1 text-sm font-semibold tracking-wide">
               Manga Orbit spotlight
