@@ -26,17 +26,36 @@ export default async function HomePage() {
   }
 
   const featured = popular[0] ?? latest[0];
-  const popularRail = popular.filter((manga) => manga.id !== featured?.id);
-  const latestRail = latest.filter((manga) => manga.id !== featured?.id);
-  const starterManga = [...popularRail, ...latestRail].slice(0, 3);
+  const basePopularRail = popular.filter((manga) => manga.id !== featured?.id);
+  const shownPopularIds = new Set([
+    ...(featured ? [featured.id] : []),
+    ...basePopularRail.map((manga) => manga.id),
+  ]);
+  const baseLatestRail = latest.filter((manga) => !shownPopularIds.has(manga.id));
+  const starterManga = [...basePopularRail, ...baseLatestRail].slice(0, 3);
+  const starterMangaIds = new Set(starterManga.map((manga) => manga.id));
+  const popularRail = basePopularRail.filter(
+    (manga) => !starterMangaIds.has(manga.id),
+  );
+  const latestRail = baseLatestRail.filter(
+    (manga) => !starterMangaIds.has(manga.id),
+  );
   const heroSides = popularRail.slice(0, 2);
+  const reservedContinueReadingIds = [
+    ...(featured ? [featured.id] : []),
+    ...popularRail.map((manga) => manga.id),
+    ...latestRail.map((manga) => manga.id),
+  ];
 
   return (
     <div className="w-full">
       {featured && <Hero manga={featured} sideManga={heroSides} />}
 
       <div className="mx-auto w-full max-w-7xl space-y-[var(--section-gap)] px-4 py-10 sm:py-12">
-        <ContinueReading starterManga={starterManga} />
+        <ContinueReading
+          starterManga={starterManga}
+          reservedMangaIds={reservedContinueReadingIds}
+        />
 
         {popularRail.length > 0 && (
           <Section

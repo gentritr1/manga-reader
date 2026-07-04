@@ -8,6 +8,7 @@ import { Navbar } from "@/components/layout/navbar";
 import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
 import { Footer } from "@/components/layout/footer";
 import { SITE_ALTERNATE_NAMES, SITE_NAME, SITE_URL } from "@/lib/site";
+import { ViewTransitionHistoryBridge } from "@/components/view-transition-history";
 
 const DESCRIPTION =
   "Manga Orbit is a clean, fast, distraction-free manga reader. Browse thousands of titles, build your library, and pick up right where you left off.";
@@ -90,6 +91,7 @@ export default function RootLayout({
             <Footer />
             <MobileTabBar />
             <AdsterraSocialAd />
+            <ViewTransitionHistoryBridge />
           </AdGateProvider>
         </Providers>
         <Analytics />

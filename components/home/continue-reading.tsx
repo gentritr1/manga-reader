@@ -89,8 +89,10 @@ function progressPercent(item: HistoryItem) {
 
 export function ContinueReading({
   starterManga = [],
+  reservedMangaIds = [],
 }: {
   starterManga?: SimpleManga[];
+  reservedMangaIds?: string[];
 }) {
   const { status } = useSession();
   const reduceMotion = useReducedMotion();
@@ -134,6 +136,7 @@ export function ContinueReading({
   }
 
   const history = status === "authenticated" ? data : localHistory;
+  const reservedManga = new Set(reservedMangaIds);
 
   if (history.length === 0) {
     return (
@@ -165,6 +168,7 @@ export function ContinueReading({
               >
                 <CoverTransitionElement
                   mangaId={item.mangaId}
+                  enabled={!reservedManga.has(item.mangaId)}
                   className="relative aspect-[2/3] w-14 shrink-0 overflow-hidden rounded-md bg-surface-muted"
                 >
                   {item.coverUrl && (
