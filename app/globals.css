@@ -31,7 +31,9 @@
   --line-inverse: oklch(0.97 0.018 284 / 0.2);
   --brand-primary: var(--brand-violet);
   --brand-primary-foreground: var(--brand-paper);
-  --action-primary: var(--brand-coral);
+  /* One accent: reading actions share the violet brand frame so chrome, CTAs,
+     and account entry read as a single palette. Coral is retired from UI. */
+  --action-primary: var(--brand-violet);
   --action-primary-foreground: var(--brand-paper);
   --discovery: var(--brand-cyan);
   --discovery-surface: oklch(0.63 0.15 188 / 0.14);
@@ -80,16 +82,22 @@
   --spotlight: var(--surface-spotlight);
   --spotlight-foreground: var(--content-inverse);
   --ring: var(--focus);
-  --status-ongoing: oklch(0.72 0.10 155);
-  --status-ongoing-foreground: oklch(0.20 0.04 155);
-  --status-completed: oklch(0.75 0.09 230);
-  --status-completed-foreground: oklch(0.20 0.04 230);
-  --status-hiatus: oklch(0.76 0.11 75);
-  --status-hiatus-foreground: oklch(0.20 0.04 75);
-  --status-cancelled: oklch(0.72 0.12 25);
-  --status-cancelled-foreground: oklch(0.20 0.04 25);
-  --status-unknown: oklch(0.72 0.04 280);
-  --status-unknown-foreground: oklch(0.20 0.03 280);
+
+  /* Status colors: muted, dark-theme-native hues used only as a small dot on a
+     translucent dark pill. The pill surface/foreground stay constant so every
+     badge reads as one component; only the dot hue changes by status. */
+  --status-pill: oklch(0.2 0.02 280 / 0.66);
+  --status-pill-foreground: oklch(0.96 0.01 285);
+  --status-ongoing: oklch(0.7 0.13 155);
+  --status-ongoing-foreground: var(--status-pill-foreground);
+  --status-completed: oklch(0.68 0.12 235);
+  --status-completed-foreground: var(--status-pill-foreground);
+  --status-hiatus: oklch(0.75 0.13 75);
+  --status-hiatus-foreground: var(--status-pill-foreground);
+  --status-cancelled: oklch(0.66 0.15 25);
+  --status-cancelled-foreground: var(--status-pill-foreground);
+  --status-unknown: oklch(0.68 0.03 280);
+  --status-unknown-foreground: var(--status-pill-foreground);
   --radius: 0.65rem;
   --radius-control: 0.55rem;
   --radius-card: 0.75rem;
@@ -130,8 +138,8 @@
   --line-inverse: oklch(0.96 0.018 284 / 0.2);
   --brand-primary: var(--brand-violet);
   --brand-primary-foreground: var(--brand-ink);
-  --action-primary: var(--brand-coral);
-  --action-primary-foreground: oklch(0.98 0.005 280);
+  --action-primary: var(--brand-violet);
+  --action-primary-foreground: oklch(0.14 0.03 280);
   --discovery: var(--brand-cyan);
   --discovery-surface: oklch(0.74 0.15 188 / 0.16);
   --discovery-line: oklch(0.74 0.15 188 / 0.36);
@@ -178,16 +186,19 @@
   --spotlight: var(--surface-spotlight);
   --spotlight-foreground: var(--content-inverse);
   --ring: var(--focus);
-  --status-ongoing: oklch(0.78 0.10 155);
-  --status-ongoing-foreground: oklch(0.15 0.04 155);
-  --status-completed: oklch(0.80 0.09 230);
-  --status-completed-foreground: oklch(0.15 0.04 230);
-  --status-hiatus: oklch(0.82 0.11 75);
-  --status-hiatus-foreground: oklch(0.15 0.04 75);
-  --status-cancelled: oklch(0.78 0.12 25);
-  --status-cancelled-foreground: oklch(0.15 0.04 25);
-  --status-unknown: oklch(0.78 0.04 280);
-  --status-unknown-foreground: oklch(0.15 0.03 280);
+
+  --status-pill: oklch(0.14 0.02 280 / 0.62);
+  --status-pill-foreground: oklch(0.96 0.012 285);
+  --status-ongoing: oklch(0.74 0.14 155);
+  --status-ongoing-foreground: var(--status-pill-foreground);
+  --status-completed: oklch(0.72 0.13 235);
+  --status-completed-foreground: var(--status-pill-foreground);
+  --status-hiatus: oklch(0.8 0.14 75);
+  --status-hiatus-foreground: var(--status-pill-foreground);
+  --status-cancelled: oklch(0.7 0.16 25);
+  --status-cancelled-foreground: var(--status-pill-foreground);
+  --status-unknown: oklch(0.72 0.03 280);
+  --status-unknown-foreground: var(--status-pill-foreground);
 }
 
 @theme inline {
@@ -251,6 +262,8 @@
   --color-spotlight: var(--spotlight);
   --color-spotlight-foreground: var(--spotlight-foreground);
   --color-ring: var(--ring);
+  --color-status-pill: var(--status-pill);
+  --color-status-pill-foreground: var(--status-pill-foreground);
   --color-status-ongoing: var(--status-ongoing);
   --color-status-ongoing-foreground: var(--status-ongoing-foreground);
   --color-status-completed: var(--status-completed);

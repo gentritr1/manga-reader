@@ -47,7 +47,7 @@ export function YomiMark({ title, ...props }: YomiMarkProps) {
       />
       <path
         d="M39.6 17.5h7.5v17.8l-3.8-3.2-3.7 3.2V17.5Z"
-        fill="var(--action-primary)"
+        fill="var(--brand-coral)"
       />
       <path
         d="M15.5 47.8c7.5-3.2 13.4-2.5 16.5 1.9 3.1-4.4 9-5.1 16.5-1.9"

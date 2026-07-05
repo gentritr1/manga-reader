@@ -1,7 +1,13 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-type BadgeVariant = "neutral" | "inverse" | "discovery" | "library" | "chapter";
+type BadgeVariant =
+  | "neutral"
+  | "inverse"
+  | "discovery"
+  | "library"
+  | "chapter"
+  | "status";
 
 const variants: Record<BadgeVariant, string> = {
   neutral:
@@ -12,8 +18,12 @@ const variants: Record<BadgeVariant, string> = {
     "border-discovery-line bg-discovery-surface text-content-inverse",
   library:
     "border-library-line bg-library-surface text-library-foreground",
+  // Overlay pills that sit on cover art: one translucent dark surface with a
+  // hairline so they read as chrome, not stickers pasted over the artwork.
   chapter:
-    "border-line-inverse bg-surface-spotlight/70 text-content-inverse",
+    "border-line-inverse bg-status-pill text-status-pill-foreground backdrop-blur-md",
+  status:
+    "border-line-inverse bg-status-pill text-status-pill-foreground backdrop-blur-md",
 };
 
 export function Badge({
