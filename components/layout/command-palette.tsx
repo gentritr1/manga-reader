@@ -118,17 +118,18 @@ export function CommandPalette({ className }: { className?: string }) {
         aria-controls={open ? paletteId : undefined}
         aria-label="Search manga"
         className={cn(
-          // Mobile: a ghost icon button that matches the theme toggle. From sm
-          // up: a real search field that grows to fill and never wraps.
-          "flex h-11 min-w-0 items-center justify-center gap-2 rounded-lg text-sm text-content-secondary transition-colors hover:bg-surface-muted hover:text-content-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus sm:justify-start sm:rounded-xl sm:border sm:border-line-subtle sm:bg-surface-muted/30 sm:px-3.5 sm:hover:bg-surface-muted/80",
+          // Up through lg: a ghost icon button that matches the theme toggle.
+          // Only at xl+ does it expand into a real search field with room for
+          // its full placeholder — so no truncated-placeholder state can exist.
+          "flex h-11 min-w-0 items-center justify-center gap-2 rounded-lg text-sm text-content-secondary transition-colors duration-150 ease-out hover:bg-surface-muted hover:text-content-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus xl:justify-start xl:rounded-xl xl:border xl:border-line-subtle xl:bg-surface-muted/30 xl:px-3.5 xl:hover:bg-surface-muted/80",
           className
         )}
       >
-        <Search className="h-5 w-5 shrink-0 sm:h-4 sm:w-4" aria-hidden="true" />
-        <span className="hidden min-w-0 flex-1 truncate text-left font-medium sm:block">
+        <Search className="h-5 w-5 shrink-0 xl:h-4 xl:w-4" aria-hidden="true" />
+        <span className="hidden min-w-0 flex-1 truncate text-left font-medium xl:block">
           Search manga...
         </span>
-        <kbd className="pointer-events-none hidden h-5 shrink-0 select-none items-center gap-1 rounded border border-line-subtle bg-surface-canvas/50 px-1.5 font-mono text-[10px] font-medium opacity-100 lg:flex">
+        <kbd className="pointer-events-none hidden h-5 shrink-0 select-none items-center gap-1 rounded border border-line-subtle bg-surface-canvas/50 px-1.5 font-mono text-[10px] font-medium opacity-100 xl:flex">
           <span className="text-xs">⌘</span>K
         </kbd>
       </button>

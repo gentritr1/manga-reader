@@ -37,12 +37,15 @@ export function UserMenu() {
   if (!session?.user) {
     return (
       <div className="flex items-center gap-2">
+        {/* Log in shows on the mobile top bar (< md) and again at lg+. In the
+            md tier the bar is tightest, so we keep a single auth affordance —
+            the Sign up pill — and rely on the signup page's link to /login. */}
         <Link
           href="/login"
           className={buttonClassName({
             variant: "ghost",
             size: "sm",
-            className: "px-2.5 sm:px-3",
+            className: "px-2.5 sm:px-3 md:hidden lg:inline-flex",
           })}
         >
           <LogIn className="h-4 w-4" aria-hidden="true" />
@@ -50,7 +53,10 @@ export function UserMenu() {
         </Link>
         <Link
           href="/signup"
-          className={buttonClassName({ size: "sm", className: "hidden sm:inline-flex" })}
+          className={buttonClassName({
+            size: "sm",
+            className: "hidden px-2.5 sm:inline-flex lg:px-3",
+          })}
         >
           Sign up
         </Link>
