@@ -88,6 +88,39 @@ Supabase, Vercel Postgres, or another Postgres provider, then:
 6. Add the same `DATABASE_URL` and `DIRECT_URL` in Vercel project environment
    variables.
 
+### Local database (no Neon needed)
+
+For local testing you don't need a hosted database — Prisma ships a local
+Postgres-compatible server (`prisma dev`, PGlite-based, no Docker):
+
+1. Start it (needs Node ≥ 23.4, or 22.5–23.3 with the flag shown):
+
+   ```bash
+   NODE_OPTIONS=--experimental-sqlite npx prisma dev
+   ```
+
+   It prints a `postgres://postgres:postgres@localhost:51214/template1?...`
+   connection string and keeps running (leave the terminal open; data persists
+   across restarts).
+2. Put that string in **both** `.env` (Prisma CLI) and `.env.local` (Next.js)
+   as `DATABASE_URL` and `DIRECT_URL`.
+3. Create the tables: `npx prisma db push`. (`migrate deploy` does not work
+   from scratch — the migrations folder has no baseline init migration; see
+   note below.)
+4. `npm run dev` as usual. Sign-up, favorites, shelves, and history sync now
+   work fully offline.
+
+> **Known gap:** `prisma/migrations/` contains only an incremental migration
+> and no baseline, so `prisma migrate deploy` cannot build a fresh database.
+> Production was bootstrapped with `db push`. Before the next schema change,
+> consider generating a baseline migration (`prisma migrate diff --from-empty
+> --to-schema-datamodel prisma/schema.prisma --script`) and marking it applied
+> in existing environments.
+
+Alternatively, `docker-compose.yml` provides a real Postgres 15 on port 5432
+(`docker compose up -d db`) if you prefer Docker:
+`postgres://postgres:postgres@localhost:5432/manga_reader`.
+
 ## Support and source policy
 
 The current app uses the MangaDex API. MangaDex's API acceptable usage policy says
