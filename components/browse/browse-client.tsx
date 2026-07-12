@@ -1,6 +1,14 @@
 "use client";
 
-import { Fragment, useEffect, useId, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Check, Search, SlidersHorizontal } from "lucide-react";
@@ -13,6 +21,7 @@ import {
 import {
   TAG_GROUPS,
   type MangaStatus,
+  type SimpleManga,
   type SortOption,
 } from "@/lib/mangadex";
 import { MangaCard } from "@/components/manga/manga-card";
@@ -24,6 +33,15 @@ import { Select } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 24;
+// Vertical buffer around the viewport within which a card mounts its cover
+// image. Beyond this band the <img> is unmounted, so the count of decoded
+// covers held in memory stays bounded no matter how deep the infinite grid
+// grows. ~1200px each way ≈ several extra rows of pre/post-load headroom, so
+// covers are ready well before they scroll into view at normal speed.
+const COVER_WINDOW_MARGIN = "1200px 0px";
+
+/** Register an element with the shared cover-window observer. Returns a cleanup. */
+type RegisterCard = (el: Element, onChange: (near: boolean) => void) => () => void;
 const LATEST_BROWSE_STALE_TIME_MS = 2 * 60 * 1000;
 const SORTS: { value: SortOption; label: string }[] = [
   { value: "relevance", label: "Best match" },
@@ -129,6 +147,42 @@ export function BrowseClient() {
     obs.observe(el);
     return () => obs.disconnect();
   }, [query.hasNextPage, query.isFetchingNextPage, query]);
+
+  // Image windowing: a single IntersectionObserver shared by every card. Cards
+  // register their wrapper and get a boolean when they enter/leave the buffered
+  // viewport band; only cards inside the band mount their cover <img>. This keeps
+  // the number of decoded covers bounded while leaving the full card DOM (and
+  // thus scroll geometry, alignment, focus order, and back/forward scroll
+  // restoration) completely intact.
+  const cardCallbacks = useRef(new Map<Element, (near: boolean) => void>());
+  const coverObserver = useRef<IntersectionObserver | null>(null);
+  useEffect(() => {
+    const obs = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          cardCallbacks.current.get(entry.target)?.(entry.isIntersecting);
+        }
+      },
+      { rootMargin: COVER_WINDOW_MARGIN, threshold: 0 },
+    );
+    coverObserver.current = obs;
+    // Child effects run before this parent effect, so cards may have registered
+    // before the observer existed — start observing whatever is already queued.
+    for (const el of cardCallbacks.current.keys()) obs.observe(el);
+    return () => {
+      obs.disconnect();
+      coverObserver.current = null;
+    };
+  }, []);
+
+  const registerCard = useCallback<RegisterCard>((el, onChange) => {
+    cardCallbacks.current.set(el, onChange);
+    coverObserver.current?.observe(el);
+    return () => {
+      cardCallbacks.current.delete(el);
+      coverObserver.current?.unobserve(el);
+    };
+  }, []);
 
   const toggleGenre = (id: string) =>
     setGenres((g) => (g.includes(id) ? g.filter((x) => x !== id) : [...g, id]));
@@ -287,7 +341,11 @@ export function BrowseClient() {
                     className="col-span-2 my-3 sm:col-span-3 md:col-span-4 lg:col-span-5 xl:col-span-6"
                   />
                 )}
-                <MangaCard manga={m} eager={index < 6} />
+                <BrowseCard
+                  manga={m}
+                  eager={index < 6}
+                  register={registerCard}
+                />
               </Fragment>
             ))}
           </div>
@@ -299,6 +357,39 @@ export function BrowseClient() {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * A single browse-grid cell. Wraps MangaCard and drives cover-image windowing:
+ * the card DOM is always mounted (so layout, alignment, focus order, and scroll
+ * restoration are untouched), but its cover <img> mounts only while the cell is
+ * within the shared observer's buffered viewport band. Eager (first-row / LCP)
+ * cards always render their cover and skip the observer entirely.
+ */
+function BrowseCard({
+  manga,
+  eager,
+  register,
+}: {
+  manga: SimpleManga;
+  eager: boolean;
+  register: RegisterCard;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [near, setNear] = useState(eager);
+
+  useEffect(() => {
+    if (eager) return; // eager cards keep their cover mounted permanently
+    const el = ref.current;
+    if (!el) return;
+    return register(el, setNear);
+  }, [eager, register]);
+
+  return (
+    <div ref={ref}>
+      <MangaCard manga={manga} eager={eager} renderCover={eager || near} />
     </div>
   );
 }

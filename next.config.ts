@@ -22,7 +22,12 @@ const nextConfig: NextConfig = {
   images: {
     deviceSizes: [360, 414, 640, 768, 1024, 1280, 1536],
     imageSizes: [40, 64, 96, 128, 160, 256, 384],
-    formats: ["image/webp"],
+    // AVIF first (≈20% smaller than WebP), WebP fallback, then the source jpeg
+    // for browsers that support neither. Next negotiates via the Accept header.
+    // Tradeoff: AVIF encoding is ~50% slower on the FIRST request for a given
+    // size, but results are cached (minimumCacheTTL) so repeat loads are fast.
+    // Applies only to proxied /_next/image covers; direct covers are unoptimized.
+    formats: ["image/avif", "image/webp"],
     minimumCacheTTL: 86400,
     qualities: [75],
     maximumRedirects: 1,

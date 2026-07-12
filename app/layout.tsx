@@ -20,6 +20,13 @@ import { Footer } from "@/components/layout/footer";
 import { SITE_ALTERNATE_NAMES, SITE_NAME, SITE_URL } from "@/lib/site";
 import { ViewTransitionHistoryBridge } from "@/components/view-transition-history";
 
+// When covers are served directly from MangaDex (NEXT_PUBLIC_DIRECT_COVERS),
+// the browser opens a fresh cross-origin connection to uploads.mangadex.org for
+// every cover; a preconnect warms TLS/DNS ahead of the first request. With the
+// default proxy (/_next/image) covers are same-origin, so no preconnect is
+// needed — adding one would only open an idle, unused connection.
+const DIRECT_COVERS = process.env.NEXT_PUBLIC_DIRECT_COVERS === "true";
+
 const DESCRIPTION =
   "Manga Orbit is a clean, fast, distraction-free manga reader. Browse thousands of titles, build your library, and pick up right where you left off.";
 const DEFAULT_TITLE = `${SITE_NAME}: Modern Manga Reader`;
@@ -82,6 +89,11 @@ export default function RootLayout({
       className={`h-full antialiased ${bricolage.variable}`}
     >
       <body className="min-h-full flex flex-col">
+        {DIRECT_COVERS && (
+          // React 19 hoists this into <head>. Matches the plain (no-cors) <img>
+          // requests direct covers make, so no crossOrigin attribute.
+          <link rel="preconnect" href="https://uploads.mangadex.org" />
+        )}
         <Providers>
           <AdGateProvider>
             <a

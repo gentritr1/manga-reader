@@ -19,9 +19,18 @@ const STATUS_DOT: Record<string, string> = {
 export function MangaCard({
   manga,
   eager = false,
+  renderCover = true,
 }: {
   manga: SimpleManga;
   eager?: boolean;
+  /**
+   * When false, the cover image element is not mounted. The aspect-[2/3] box
+   * still reserves identical space, so toggling this never shifts layout. The
+   * browse grid flips this off for cards far outside the viewport to bound the
+   * number of decoded cover images held in memory (image windowing). Defaults
+   * to true so every other usage (home, shelves) is unaffected.
+   */
+  renderCover?: boolean;
 }) {
   const cover = coverUrl(manga.id, manga.coverFileName, 512);
 
@@ -42,7 +51,11 @@ export function MangaCard({
             mangaId={manga.id}
             className="relative aspect-[2/3] w-full overflow-hidden rounded-cover border border-line-subtle bg-surface-muted shadow-sm transition duration-300 group-hover:-translate-y-0.5 group-hover:border-line-shelf group-hover:shadow-[var(--elevation-hover)]"
           >
-            {cover ? (
+            {!cover ? (
+              <div className="grid h-full place-items-center text-xs text-content-secondary">
+                No cover
+              </div>
+            ) : renderCover ? (
               <MangaCoverImage
                 src={cover}
                 alt={manga.title}
@@ -52,11 +65,7 @@ export function MangaCard({
                 sizes="(max-width: 640px) 45vw, (max-width: 1024px) 22vw, 200px"
                 className="object-cover transition duration-200 ease-out group-hover:scale-[1.04]"
               />
-            ) : (
-              <div className="grid h-full place-items-center text-xs text-content-secondary">
-                No cover
-              </div>
-            )}
+            ) : null}
 
             {/* Bottom scrim keeps overlay chrome legible over any artwork. */}
             <div
