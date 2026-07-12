@@ -19,7 +19,11 @@ export function Navbar() {
       <div className="mx-auto flex h-14 max-w-7xl items-center gap-2 px-4 sm:gap-3">
         <Link
           href="/"
-          className="flex shrink-0 items-center gap-2 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+          // Below 420px only the 36px mark shows; `after:-inset-1` extends an
+          // invisible 4px-per-side hit area → a 44px (WCAG 2.5.5) tap target
+          // without changing the bar's visual layout. Same pattern as the
+          // manga-card favorite button.
+          className="relative flex shrink-0 items-center gap-2 rounded-lg after:absolute after:-inset-1 after:content-[''] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
           aria-label="Manga Orbit home"
         >
           <YomiMark className="h-9 w-9 shrink-0 [filter:drop-shadow(0_10px_18px_rgb(36_19_95_/_0.22))]" />

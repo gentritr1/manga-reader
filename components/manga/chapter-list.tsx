@@ -13,6 +13,7 @@ import {
 } from "@/lib/reading-progress";
 import { InternalAdPreview } from "@/components/ads/internal-ad-preview";
 import { useAdGate } from "@/components/ads/ad-gate-provider";
+import { isAdSlotConfigured } from "@/lib/ad-config";
 import { cn } from "@/lib/utils";
 
 type SortDirection = "newest" | "oldest";
@@ -253,10 +254,11 @@ function VolumeSection({
 // In-list ad break. AdsterraAdSlot returns null whenever ads are gated off
 // (every viewer except the two ad-enabled accounts, plus all of SSR), so gating
 // the bordered wrapper on the same signal stops an empty bordered strip from
-// painting under the chapter rows.
+// painting under the chapter rows. Also gate on the slot being configured, so an
+// ad-enabled account whose banner slot has no keys never sees an empty box.
 function ChapterListAd() {
   const { showAds } = useAdGate();
-  if (!showAds) return null;
+  if (!showAds || !isAdSlotConfigured("banner")) return null;
   return (
     <div className="border-t border-line-subtle/70 bg-card px-4 py-5">
       <InternalAdPreview placement="banner" />

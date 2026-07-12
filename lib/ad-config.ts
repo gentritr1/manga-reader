@@ -70,6 +70,17 @@ function iframeConfig(
   };
 }
 
+/**
+ * True when `placement` has a usable ad config (ads enabled AND the placement's
+ * NEXT_PUBLIC_* keys are present/valid). This is exactly the null-decision
+ * AdsterraAdSlot already makes internally, surfaced so wrappers can avoid
+ * painting an empty bordered box around a slot that will render nothing — even
+ * for an ad-enabled account whose slot keys aren't configured.
+ */
+export function isAdSlotConfigured(placement: AdPlacement): boolean {
+  return placementConfig(placement) !== null;
+}
+
 export function placementConfig(placement: AdPlacement): AdConfig | null {
   if (process.env.NEXT_PUBLIC_ADS_ENABLED !== "true") return null;
 

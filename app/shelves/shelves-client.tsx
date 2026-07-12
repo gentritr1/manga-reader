@@ -17,6 +17,13 @@ import {
   SHARE_CARD_SHELF_EDGE,
   SHARE_SPINE_BACKGROUNDS,
 } from "@/lib/share-card-theme";
+import {
+  loadedImageDataUrl,
+  waitForFonts,
+  waitForImageReady,
+  waitForPaint,
+  waitForRenderedImages,
+} from "@/lib/share-card-rasterize";
 
 type ShelfItem = {
   id: string;
@@ -37,7 +44,6 @@ type LoadedCoverSources = Record<string, Record<string, string>>;
 const SHARE_CARD_WIDTH = 1080;
 const SHARE_CARD_HEIGHT = 1350;
 const SHARE_COVER_LIMIT = 6;
-const COVER_WAIT_MS = 1800;
 
 // Refined, jewel-toned shelf accents tuned to read well on the dark night-shelf
 // canvas. Keyed by the colour ids the server already validates.
@@ -79,78 +85,6 @@ function slugifyShelfName(name: string) {
   return slug || "shelf";
 }
 
-function waitForPaint() {
-  return new Promise<void>((resolve) => {
-    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-  });
-}
-
-async function waitForFonts() {
-  if ("fonts" in document) {
-    await document.fonts.ready.catch(() => undefined);
-  }
-}
-
-async function waitForImageReady(img: HTMLImageElement) {
-  if (img.complete) {
-    if (img.naturalWidth > 0) {
-      await img.decode().catch(() => undefined);
-      return true;
-    }
-    return false;
-  }
-
-  return new Promise<boolean>((resolve) => {
-    let settled = false;
-    const finish = async (ready: boolean) => {
-      if (settled) return;
-      settled = true;
-      window.clearTimeout(timeout);
-      img.removeEventListener("load", handleLoad);
-      img.removeEventListener("error", handleError);
-      if (ready) await img.decode().catch(() => undefined);
-      resolve(ready);
-    };
-    const handleLoad = () => void finish(img.naturalWidth > 0);
-    const handleError = () => void finish(false);
-    const timeout = window.setTimeout(() => void finish(false), COVER_WAIT_MS);
-
-    img.addEventListener("load", handleLoad);
-    img.addEventListener("error", handleError);
-  });
-}
-
-function sameOriginImageSource(img: HTMLImageElement) {
-  const source = img.currentSrc || img.src;
-  if (!source) return null;
-  if (source.startsWith("data:") || source.startsWith("blob:")) return source;
-
-  try {
-    const url = new URL(source, window.location.href);
-    return url.origin === window.location.origin ? url.href : null;
-  } catch {
-    return null;
-  }
-}
-
-function loadedImageDataUrl(img: HTMLImageElement) {
-  if (!sameOriginImageSource(img) || img.naturalWidth <= 0 || img.naturalHeight <= 0) {
-    return null;
-  }
-
-  try {
-    const canvas = document.createElement("canvas");
-    canvas.width = img.naturalWidth;
-    canvas.height = img.naturalHeight;
-    const context = canvas.getContext("2d");
-    if (!context) return null;
-    context.drawImage(img, 0, 0);
-    return canvas.toDataURL("image/png");
-  } catch {
-    return null;
-  }
-}
-
 async function collectLoadedShelfCoverSources(
   shelfId: string,
   items: ShelfItem[],
@@ -178,11 +112,6 @@ async function collectLoadedShelfCoverSources(
   );
 
   return Object.fromEntries(entries.filter((entry) => entry !== null));
-}
-
-async function waitForRenderedImages(root: HTMLElement) {
-  const images = Array.from(root.querySelectorAll("img"));
-  await Promise.all(images.map((img) => waitForImageReady(img)));
 }
 
 export function ShelvesClient({ initialShelves }: { initialShelves: Shelf[] }) {

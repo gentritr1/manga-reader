@@ -17,6 +17,7 @@ import {
   MANGA_SEARCH_GC_TIME_MS,
   MANGA_SEARCH_STALE_TIME_MS,
   searchMangaClient,
+  type ClientSearchResult,
 } from "@/lib/mangadex-client";
 import {
   PUBLIC_CONTENT_RATINGS,
@@ -102,7 +103,19 @@ function useDebounced<T>(value: T, delay = 400) {
   return debounced;
 }
 
-export function BrowseClient() {
+export function BrowseClient({
+  initialData,
+  initialLanguage = DEFAULT_READING_LANGUAGE,
+}: {
+  // Server-seeded FIRST page of the DEFAULT result set (newest updates,
+  // Safe+Suggestive, cookie language). Present only when the visitor landed with
+  // no URL filters, so it always matches the default query key below.
+  initialData?: ClientSearchResult;
+  // Cookie-derived reading language the server seeded with. Used as the initial
+  // state so the query key (which includes language) matches the seeded data on
+  // the first render — no hydration mismatch, no immediate refetch.
+  initialLanguage?: string;
+} = {}) {
   const params = useSearchParams();
   const router = useRouter();
   const searchId = useId();
@@ -123,10 +136,11 @@ export function BrowseClient() {
     parseRatingParam(params.get("rating")),
   );
   // Reading language is a GLOBAL preference (localStorage + cookie), not a URL
-  // filter. Start at English for SSR/hydration parity, then reconcile from
-  // localStorage after mount (mirrors the reader-prefs pattern) so there is no
-  // hydration flash and no cookie is required for the English default.
-  const [language, setLanguage] = useState<string>(DEFAULT_READING_LANGUAGE);
+  // filter. Start at the server-seeded cookie language for SSR/hydration parity
+  // (defaults to English when there is no cookie), then reconcile from
+  // localStorage after mount (mirrors the reader-prefs pattern). Seeding from the
+  // same cookie the server read keeps the query key aligned with initialData.
+  const [language, setLanguage] = useState<string>(initialLanguage);
   const [showFilters, setShowFilters] = useState(false);
   const reduceMotion = useReducedMotion();
 
@@ -183,6 +197,14 @@ export function BrowseClient() {
         ? loaded
         : undefined;
     },
+    // Seed page 1 from the server ONLY on the default landing. React Query applies
+    // initialData to whatever query key is active on mount; since the server only
+    // seeds when there were no URL filters, that first key is always the default
+    // one. No initialDataUpdatedAt → treated as fresh "now", so with browseStaleTime
+    // (2min for the default view) there is no immediate duplicate fetch of page 1.
+    initialData: initialData
+      ? { pages: [initialData], pageParams: [0] }
+      : undefined,
     staleTime: browseStaleTime,
     gcTime: MANGA_SEARCH_GC_TIME_MS,
   });

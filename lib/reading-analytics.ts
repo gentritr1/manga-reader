@@ -14,7 +14,7 @@ export interface UserReadingAnalytics {
   totalSeconds: number;
   formattedTime: string;
   averageSecondsPerPage: number | null;
-  topManga: { title: string; pages: number }[];
+  topManga: { title: string; pages: number; coverUrl: string | null }[];
 }
 
 export function calculateAverageSecondsPerPage(
@@ -54,27 +54,49 @@ async function getUserReadingAnalyticsUncached(
     0,
   );
 
-  const mangaMap: Record<string, { title: string; pages: number }> = {};
+  const mangaMap: Record<string, { mangaId: string; title: string; pages: number }> =
+    {};
   sessions.forEach((session) => {
     if (!mangaMap[session.mangaId]) {
-      mangaMap[session.mangaId] = { title: session.mangaTitle, pages: 0 };
+      mangaMap[session.mangaId] = {
+        mangaId: session.mangaId,
+        title: session.mangaTitle,
+        pages: 0,
+      };
     }
     mangaMap[session.mangaId].pages += session.pagesRead;
   });
+
+  const ranked = Object.values(mangaMap)
+    .sort((a, b) => b.pages - a.pages)
+    .slice(0, 3);
+
+  // ReadingSession carries no cover, but ReadingProgress does (same mangaId,
+  // same user). Look up covers for just the top 3 and attach them additively.
+  const topIds = ranked.map((m) => m.mangaId);
+  const covers = topIds.length
+    ? await prisma.readingProgress.findMany({
+        where: { userId, mangaId: { in: topIds } },
+        select: { mangaId: true, coverUrl: true },
+      })
+    : [];
+  const coverByMangaId = new Map(covers.map((c) => [c.mangaId, c.coverUrl]));
 
   return {
     totalPages,
     totalSeconds,
     formattedTime: formatTotalTime(totalSeconds),
     averageSecondsPerPage: calculateAverageSecondsPerPage(sessions),
-    topManga: Object.values(mangaMap)
-      .sort((a, b) => b.pages - a.pages)
-      .slice(0, 3),
+    topManga: ranked.map((m) => ({
+      title: m.title,
+      pages: m.pages,
+      coverUrl: coverByMangaId.get(m.mangaId) ?? null,
+    })),
   };
 }
 
 export const getUserReadingAnalytics = unstable_cache(
   getUserReadingAnalyticsUncached,
-  ["user-reading-analytics-v1"],
+  ["user-reading-analytics-v2"],
   { revalidate: 300 },
 );

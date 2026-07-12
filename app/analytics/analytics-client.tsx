@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
+import Image from "next/image";
 import { Download, TrendingUp, BookOpen, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { YomiMark } from "@/components/brand/yomi-mark";
@@ -12,13 +13,20 @@ import {
   SHARE_CARD_BACKGROUND_IMAGE,
   SHARE_CARD_COLORS,
   SHARE_CARD_SHELF_EDGE,
+  SHARE_SPINE_BACKGROUNDS,
 } from "@/lib/share-card-theme";
+import {
+  collectLoadedCoverSources,
+  waitForFonts,
+  waitForPaint,
+  waitForRenderedImages,
+} from "@/lib/share-card-rasterize";
 
 interface Props {
   totalPages: number;
   formattedTime: string;
   averageSpeed: string;
-  topManga: { title: string; pages: number }[];
+  topManga: { title: string; pages: number; coverUrl: string | null }[];
   name: string;
 }
 
@@ -36,16 +44,26 @@ export function AnalyticsClient({
   const rhythm = rhythmQuery.data;
   const weekStats = useLocalWeekStats();
   const weekLine = formatWeekLine(weekStats);
+  // Covers rasterized to same-origin data URLs at export time (keyed by the
+  // series' rank index). Same mechanism the shelves share card uses.
+  const [coverSources, setCoverSources] = useState<Record<string, string>>({});
 
   const handleExport = async () => {
     if (!cardRef.current) return;
     try {
+      // Pre-rasterize the next/image covers (served same-origin via /_next/image)
+      // to data URLs and swap them in, so html-to-image has inline, un-tainted
+      // pixels to draw — identical to the shelves card's cover mechanism.
+      const sources = await collectLoadedCoverSources(cardRef.current);
+      setCoverSources(sources);
+      await waitForPaint();
+
+      await waitForFonts();
+      await waitForRenderedImages(cardRef.current);
+
       // html-to-image is only needed on this explicit export action, so load it
       // on demand to keep it out of the route's initial JS bundle.
       const { toPng } = await import("html-to-image");
-      if ("fonts" in document) {
-        await document.fonts.ready.catch(() => undefined);
-      }
       const dataUrl = await toPng(cardRef.current, {
         backgroundColor: C.canvas,
         pixelRatio: 2,
@@ -187,7 +205,21 @@ export function AnalyticsClient({
               Start reading to build your recap.
             </p>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-6">
+              {/* Cover row — mirrors the shelves card's book treatment. */}
+              <div className="flex items-end gap-3">
+                {topManga.map((manga, i) => (
+                  <CoverThumb
+                    key={i}
+                    index={i}
+                    coverUrl={manga.coverUrl}
+                    dataUrl={coverSources[String(i)]}
+                    title={manga.title}
+                  />
+                ))}
+              </div>
+
+              <div className="space-y-4">
               {topManga.map((manga, i) => (
                 <div key={i} className="flex items-center justify-between gap-4">
                   <div className="flex min-w-0 items-center gap-4">
@@ -215,6 +247,7 @@ export function AnalyticsClient({
                   </span>
                 </div>
               ))}
+              </div>
             </div>
           )}
         </div>
@@ -244,6 +277,68 @@ export function AnalyticsClient({
         <Download className="mr-2 h-5 w-5" aria-hidden="true" />
         Export recap
       </Button>
+    </div>
+  );
+}
+
+// A single cover in the recap's cover row. Displays the remote cover through
+// next/image (served same-origin via /_next/image, so it can be rasterized on
+// export). During export the parent swaps in `dataUrl` — a same-origin PNG data
+// URL — which html-to-image can draw. Missing covers fall back to a spine
+// gradient, mirroring the shelves share card. Colors are explicit oklch literals
+// (no var()), as the export card must not depend on the cloned DOM's variables.
+function CoverThumb({
+  index,
+  coverUrl,
+  dataUrl,
+  title,
+}: {
+  index: number;
+  coverUrl: string | null;
+  dataUrl?: string;
+  title: string;
+}) {
+  return (
+    <div
+      className="relative aspect-[2/3] w-16 shrink-0 overflow-hidden rounded-lg sm:w-20"
+      style={{
+        background: SHARE_SPINE_BACKGROUNDS[index % SHARE_SPINE_BACKGROUNDS.length],
+        boxShadow: `0 12px 28px ${C.canvas}`,
+        outline: `1px solid ${C.lineInverse}`,
+        outlineOffset: -1,
+      }}
+    >
+      {dataUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={dataUrl}
+          alt=""
+          draggable={false}
+          style={{ display: "block", height: "100%", width: "100%", objectFit: "cover" }}
+        />
+      ) : coverUrl ? (
+        <Image
+          src={coverUrl}
+          alt=""
+          fill
+          sizes="80px"
+          data-share-cover-id={String(index)}
+          className="object-cover"
+        />
+      ) : (
+        <span
+          className="font-display absolute inset-x-2 top-3 text-[11px] font-extrabold leading-tight"
+          style={{
+            color: "oklch(0.96 0.018 284 / 0.84)",
+            display: "-webkit-box",
+            WebkitBoxOrient: "vertical",
+            WebkitLineClamp: 3,
+            overflow: "hidden",
+          }}
+        >
+          {title}
+        </span>
+      )}
     </div>
   );
 }

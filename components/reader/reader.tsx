@@ -66,6 +66,9 @@ const SPREAD_MIN_WIDTH = 1024;
 const ZOOM_MIN = 1;
 const ZOOM_MAX = 3;
 const ZOOM_STEP = 0.5;
+// On pinch release, a zoom this close to 1x snaps back to exactly 1 and clears
+// pan (so a barely-zoomed page never leaves the reader in a stuck panned state).
+const ZOOM_SNAP_MIN = 1.05;
 
 function clampZoom(value: number): number {
   return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(value * 100) / 100));
@@ -2077,32 +2080,114 @@ function PagedReader({
     onSetZoom((z) => (z > 1 ? 1 : 2));
   };
 
-  const handlePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
-    if (!zoomed) return;
-    setDragging(true);
-    panStart.current = { px: e.clientX, py: e.clientY, baseX: pan.x, baseY: pan.y };
-    e.currentTarget.setPointerCapture(e.pointerId);
+  // Two-pointer pinch shares the SAME pointer-event pipeline as single-pointer
+  // drag-pan. `pointers` tracks every active pointer on the surface; `pinch`
+  // holds the reference distance + zoom captured when the 2nd pointer lands.
+  // Handlers live on the surface wrapper (below) so they still fire at zoom 1,
+  // where the page-turn click zones overlay the transform node.
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const pinch = useRef<{ startDist: number; startZoom: number } | null>(null);
+
+  const pointerSpread = () => {
+    const pts = [...pointers.current.values()];
+    if (pts.length < 2) return 0;
+    return Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
   };
-  const handlePointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
-    const start = panStart.current;
-    if (!start) return;
+
+  const clampPan = (nx: number, ny: number, atZoom: number) => {
     const rect = zoomRef.current?.getBoundingClientRect();
     // Clamp the pan so the scaled page can't be dragged completely off-screen.
-    const maxX = rect ? (rect.width * (zoom - 1)) / 2 : Infinity;
-    const maxY = rect ? (rect.height * (zoom - 1)) / 2 : Infinity;
-    const nx = start.baseX + (e.clientX - start.px);
-    const ny = start.baseY + (e.clientY - start.py);
-    onSetPan({
+    const maxX = rect ? (rect.width * (atZoom - 1)) / 2 : Infinity;
+    const maxY = rect ? (rect.height * (atZoom - 1)) / 2 : Infinity;
+    return {
       x: Math.min(maxX, Math.max(-maxX, nx)),
       y: Math.min(maxY, Math.max(-maxY, ny)),
-    });
+    };
   };
+
+  const handlePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!isContent) return;
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const count = pointers.current.size;
+    if (count === 2) {
+      // Second finger down → enter pinch, superseding any in-flight drag-pan.
+      // Capturing BOTH pointers on the surface keeps the gesture alive even as
+      // the page-turn zones unmount the instant zoom crosses 1x.
+      panStart.current = null;
+      setDragging(false);
+      pinch.current = { startDist: pointerSpread(), startZoom: zoom };
+      for (const id of pointers.current.keys()) {
+        try {
+          e.currentTarget.setPointerCapture(id);
+        } catch {}
+      }
+    } else if (count === 1 && zoomed) {
+      // Single finger while already zoomed → drag-pan (unchanged behavior).
+      setDragging(true);
+      panStart.current = { px: e.clientX, py: e.clientY, baseX: pan.x, baseY: pan.y };
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {}
+    }
+    // count === 1 && !zoomed: do nothing so the tap reaches the page-turn zone.
+  };
+
+  const handlePointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!pointers.current.has(e.pointerId)) return;
+    pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+    const active = pinch.current;
+    if (active && pointers.current.size >= 2) {
+      // Center-anchored (transform-origin stays center, matching double-click and
+      // ⌘/Ctrl+wheel zoom) — keeps the pan math trivial and predictable.
+      const dist = pointerSpread();
+      if (active.startDist > 0) {
+        onSetZoom(clampZoom(active.startZoom * (dist / active.startDist)));
+      }
+      return;
+    }
+
+    const start = panStart.current;
+    if (!start) return;
+    onSetPan(
+      clampPan(
+        start.baseX + (e.clientX - start.px),
+        start.baseY + (e.clientY - start.py),
+        zoom,
+      ),
+    );
+  };
+
   const handlePointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
-    panStart.current = null;
-    setDragging(false);
+    const wasPinching = pinch.current !== null && pointers.current.size >= 2;
+    pointers.current.delete(e.pointerId);
     try {
       e.currentTarget.releasePointerCapture(e.pointerId);
     } catch {}
+
+    if (wasPinching && pointers.current.size < 2) {
+      pinch.current = null;
+      if (zoom < ZOOM_SNAP_MIN) {
+        // Settled near 1x → snap to exactly 1 and clear pan.
+        onSetZoom(1);
+        onSetPan({ x: 0, y: 0 });
+      } else if (pointers.current.size === 1) {
+        // One finger remains → hand back to drag-pan from its current position
+        // (no jump: baseX/baseY start from the current pan).
+        const [[id, pt]] = [...pointers.current.entries()];
+        setDragging(true);
+        panStart.current = { px: pt.x, py: pt.y, baseX: pan.x, baseY: pan.y };
+        try {
+          e.currentTarget.setPointerCapture(id);
+        } catch {}
+      }
+      return;
+    }
+
+    if (pointers.current.size === 0) {
+      panStart.current = null;
+      setDragging(false);
+    }
   };
 
   // Directional page-turn: in LTR, NEXT slides the incoming page in from the
@@ -2180,10 +2265,6 @@ function PagedReader({
       <div
         ref={zoomRef}
         onDoubleClick={handleDoubleClick}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
         className={cn(
           "flex w-full justify-center gap-1",
           fit === "fit-width" ? "items-start" : "items-center",
@@ -2195,7 +2276,6 @@ function PagedReader({
             : undefined,
           transformOrigin: "center center",
           transition: reduceMotion || dragging ? "none" : "transform 0.18s ease-out",
-          touchAction: zoomed ? "none" : undefined,
         }}
       >
         {renderPages.map((pageNumber) => (
@@ -2226,61 +2306,76 @@ function PagedReader({
 
   return (
     <div className="relative flex min-h-[calc(100vh-3.5rem)] flex-col">
+      {/* Pinch/pan surface. Pointer handlers live here (not on the transform
+          node) so a two-finger pinch is caught even at zoom 1, where the
+          page-turn click zones overlay the page. touchAction: at zoom 1 =>
+          "pan-x pan-y" (still allows scroll + page-turn taps, but suppresses the
+          browser's own pinch-zoom so our pointer events fire); while zoomed =>
+          "none" (we own all panning). */}
       <div
-        className={cn(
-          "flex flex-1 p-4",
-          scrollable
-            ? "items-start justify-center overflow-auto"
-            : "items-center justify-center",
-        )}
+        className="relative flex flex-1 flex-col"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        style={{ touchAction: zoomed ? "none" : "pan-x pan-y" }}
       >
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.div
-            key={slide}
-            initial={slideMotion.initial}
-            animate={slideMotion.animate}
-            exit={slideMotion.exit}
-            transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
-            className="relative flex w-full justify-center"
-          >
-            {slideContent}
-          </motion.div>
-        </AnimatePresence>
-      </div>
+        <div
+          className={cn(
+            "flex flex-1 p-4",
+            scrollable
+              ? "items-start justify-center overflow-auto"
+              : "items-center justify-center",
+          )}
+        >
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={slide}
+              initial={slideMotion.initial}
+              animate={slideMotion.animate}
+              exit={slideMotion.exit}
+              transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
+              className="relative flex w-full justify-center"
+            >
+              {slideContent}
+            </motion.div>
+          </AnimatePresence>
+        </div>
 
-      {/* Click zones. Left/right map to reading order per direction. Removed
-          while zoomed so drags reach the page instead of turning it. */}
-      {isContent && !zoomed && (
-        <>
-          <button
-            type="button"
-            aria-hidden="true"
-            tabIndex={-1}
-            onClick={leftZoneAction}
-            className={cn(
-              "absolute inset-y-0 left-0 w-1/3",
-              direction === "rtl" ? "cursor-e-resize" : "cursor-w-resize",
-            )}
-          />
-          <button
-            type="button"
-            aria-hidden="true"
-            tabIndex={-1}
-            onClick={toggleZenMode}
-            className="absolute inset-y-0 left-1/3 w-1/3 cursor-pointer"
-          />
-          <button
-            type="button"
-            aria-hidden="true"
-            tabIndex={-1}
-            onClick={rightZoneAction}
-            className={cn(
-              "absolute inset-y-0 right-0 w-1/3",
-              direction === "rtl" ? "cursor-w-resize" : "cursor-e-resize",
-            )}
-          />
-        </>
-      )}
+        {/* Click zones. Left/right map to reading order per direction. Removed
+            while zoomed so drags reach the page instead of turning it. */}
+        {isContent && !zoomed && (
+          <>
+            <button
+              type="button"
+              aria-hidden="true"
+              tabIndex={-1}
+              onClick={leftZoneAction}
+              className={cn(
+                "absolute inset-y-0 left-0 w-1/3",
+                direction === "rtl" ? "cursor-e-resize" : "cursor-w-resize",
+              )}
+            />
+            <button
+              type="button"
+              aria-hidden="true"
+              tabIndex={-1}
+              onClick={toggleZenMode}
+              className="absolute inset-y-0 left-1/3 w-1/3 cursor-pointer"
+            />
+            <button
+              type="button"
+              aria-hidden="true"
+              tabIndex={-1}
+              onClick={rightZoneAction}
+              className={cn(
+                "absolute inset-y-0 right-0 w-1/3",
+                direction === "rtl" ? "cursor-w-resize" : "cursor-e-resize",
+              )}
+            />
+          </>
+        )}
+      </div>
 
       {/* Zoom indicator + reset. Fixed and independent of zen/idle-fade so it
           never disappears while a page is zoomed. */}
