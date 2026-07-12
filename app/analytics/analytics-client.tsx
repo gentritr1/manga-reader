@@ -1,9 +1,18 @@
 "use client";
 
 import { useRef } from "react";
-import { Download, TrendingUp, BookOpen, Clock, Activity } from "lucide-react";
+import { Download, TrendingUp, BookOpen, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { YomiMark } from "@/components/brand/yomi-mark";
+import { SITE_HOST, SITE_NAME } from "@/lib/site";
 import { useReadingRhythm } from "@/lib/use-reading-rhythm";
+import { useLocalWeekStats } from "@/lib/use-local-week-stats";
+import { formatWeekLine } from "@/lib/local-reading-stats";
+import {
+  SHARE_CARD_BACKGROUND_IMAGE,
+  SHARE_CARD_COLORS,
+  SHARE_CARD_SHELF_EDGE,
+} from "@/lib/share-card-theme";
 
 interface Props {
   totalPages: number;
@@ -13,10 +22,20 @@ interface Props {
   name: string;
 }
 
-export function AnalyticsClient({ totalPages, formattedTime, averageSpeed, topManga, name }: Props) {
+const C = SHARE_CARD_COLORS;
+
+export function AnalyticsClient({
+  totalPages,
+  formattedTime,
+  averageSpeed,
+  topManga,
+  name,
+}: Props) {
   const cardRef = useRef<HTMLDivElement>(null);
   const rhythmQuery = useReadingRhythm();
   const rhythm = rhythmQuery.data;
+  const weekStats = useLocalWeekStats();
+  const weekLine = formatWeekLine(weekStats);
 
   const handleExport = async () => {
     if (!cardRef.current) return;
@@ -24,8 +43,11 @@ export function AnalyticsClient({ totalPages, formattedTime, averageSpeed, topMa
       // html-to-image is only needed on this explicit export action, so load it
       // on demand to keep it out of the route's initial JS bundle.
       const { toPng } = await import("html-to-image");
+      if ("fonts" in document) {
+        await document.fonts.ready.catch(() => undefined);
+      }
       const dataUrl = await toPng(cardRef.current, {
-        backgroundColor: "#15131d",
+        backgroundColor: C.canvas,
         pixelRatio: 2,
       });
       const link = document.createElement("a");
@@ -39,77 +61,156 @@ export function AnalyticsClient({ totalPages, formattedTime, averageSpeed, topMa
 
   return (
     <div className="space-y-8">
-      <div 
-        ref={cardRef} 
-        className="relative max-w-2xl overflow-hidden rounded-card border border-line-shelf bg-surface-shelf p-6 shadow-[var(--elevation-shelf)] sm:p-8"
+      <div
+        ref={cardRef}
+        className="relative max-w-2xl overflow-hidden rounded-card p-6 sm:p-8"
+        style={{
+          backgroundColor: C.canvas,
+          backgroundImage: SHARE_CARD_BACKGROUND_IMAGE,
+          color: C.inverse,
+        }}
       >
-        <div className="mb-6 flex items-center justify-between gap-4">
+        <div
+          aria-hidden="true"
+          className="absolute inset-x-0 top-0 h-1.5"
+          style={{ backgroundImage: SHARE_CARD_SHELF_EDGE }}
+        />
+
+        <div className="mb-8 flex items-center justify-between gap-4">
           <div>
-            <h2 className="text-2xl font-black tracking-tight text-content-primary">Chapter Pulse</h2>
-            <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-content-secondary">{`${name}'s reading recap`}</p>
+            <h2
+              className="font-display text-3xl font-extrabold tracking-tight"
+              style={{ color: C.inverse }}
+            >
+              Chapter Pulse
+            </h2>
+            <p
+              className="mt-1 text-xs font-semibold uppercase tracking-wider"
+              style={{ color: C.inverseMuted }}
+            >
+              {`${name}'s reading recap`}
+            </p>
           </div>
-          <div className="grid h-11 w-11 place-items-center rounded-control border border-library-line bg-library-surface text-library-foreground">
-            <Activity className="h-5 w-5" aria-hidden="true" />
+          <div className="flex items-center gap-2.5">
+            <YomiMark className="h-9 w-9" />
+            <span
+              className="font-display text-lg font-extrabold"
+              style={{ color: C.inverse }}
+            >
+              {SITE_NAME}
+            </span>
           </div>
         </div>
 
-        {rhythm && rhythm.rhythmDays > 0 && (
-          <div className="mb-10 flex items-center justify-between gap-4 rounded-card border border-library-line bg-library-surface px-4 py-3">
-            <div className="flex items-center gap-3">
-              <span
-                className="h-2.5 w-2.5 rounded-full bg-library shadow-[0_0_14px_var(--library)]"
-                aria-hidden="true"
-              />
-              <div>
-                <p className="text-sm font-black text-content-primary">
-                  {rhythm.rhythmDays}-day rhythm
-                </p>
-                <p className="text-xs font-semibold text-content-secondary">
-                  {rhythm.readToday ? "Read today" : "Ready for today's chapter"}
-                </p>
-              </div>
-            </div>
-            <span className="rounded-full border border-discovery-line bg-discovery-surface px-3 py-1 text-xs font-bold text-discovery-foreground">
-              Chapter Pulse
+        {weekLine && (
+          <div
+            className="mb-8 flex items-center gap-3 rounded-card px-4 py-3"
+            style={{
+              backgroundColor: C.violetTint16,
+              border: `1px solid ${C.lineInverse}`,
+            }}
+          >
+            <span
+              aria-hidden="true"
+              className="h-2.5 w-2.5 shrink-0 rounded-full"
+              style={{ backgroundColor: C.violet }}
+            />
+            <span
+              className="font-display text-sm font-extrabold"
+              style={{ color: C.inverse }}
+            >
+              My week
+            </span>
+            <span
+              className="text-sm font-medium"
+              style={{ color: C.inverseMuted }}
+            >
+              {weekLine}
             </span>
           </div>
         )}
 
         <div className="mb-10 grid grid-cols-2 gap-4">
           <div className="space-y-2">
-            <div className="flex items-center gap-2 text-content-secondary">
-              <BookOpen className="h-4 w-4" />
-              <span className="text-xs font-bold uppercase tracking-wider">Pages read</span>
+            <div
+              className="flex items-center gap-2"
+              style={{ color: C.inverseMuted }}
+            >
+              <BookOpen className="h-4 w-4" aria-hidden="true" />
+              <span className="text-xs font-bold uppercase tracking-wider">
+                Pages read
+              </span>
             </div>
-            <p className="text-3xl font-black text-content-primary sm:text-4xl">{totalPages.toLocaleString()}</p>
+            <p
+              className="font-display text-4xl font-extrabold"
+              style={{ color: C.inverse }}
+            >
+              {totalPages.toLocaleString()}
+            </p>
           </div>
-          
+
           <div className="space-y-2">
-            <div className="flex items-center gap-2 text-content-secondary">
-              <Clock className="h-4 w-4" />
-              <span className="text-xs font-bold uppercase tracking-wider">Time spent</span>
+            <div
+              className="flex items-center gap-2"
+              style={{ color: C.inverseMuted }}
+            >
+              <Clock className="h-4 w-4" aria-hidden="true" />
+              <span className="text-xs font-bold uppercase tracking-wider">
+                Time spent
+              </span>
             </div>
-            <p className="text-3xl font-black text-content-primary sm:text-4xl">{formattedTime}</p>
+            <p
+              className="font-display text-4xl font-extrabold"
+              style={{ color: C.inverse }}
+            >
+              {formattedTime}
+            </p>
           </div>
         </div>
 
         <div className="space-y-6">
-          <div className="flex items-center gap-2 text-content-secondary border-b border-line-subtle pb-4">
-            <TrendingUp className="h-4 w-4" />
-            <span className="text-xs font-bold uppercase tracking-wider">Top series</span>
+          <div
+            className="flex items-center gap-2 pb-4"
+            style={{
+              color: C.inverseMuted,
+              borderBottom: `1px solid ${C.lineInverse}`,
+            }}
+          >
+            <TrendingUp className="h-4 w-4" aria-hidden="true" />
+            <span className="text-xs font-bold uppercase tracking-wider">
+              Top series
+            </span>
           </div>
-          
+
           {topManga.length === 0 ? (
-            <p className="text-sm font-medium text-content-secondary">Start reading to build your recap.</p>
+            <p className="text-sm font-medium" style={{ color: C.inverseMuted }}>
+              Start reading to build your recap.
+            </p>
           ) : (
             <div className="space-y-4">
               {topManga.map((manga, i) => (
-                <div key={i} className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <span className="w-6 text-xl font-black text-content-secondary/50">{i + 1}</span>
-                    <span className="max-w-[180px] truncate text-base font-bold text-content-primary sm:max-w-[300px]">{manga.title}</span>
+                <div key={i} className="flex items-center justify-between gap-4">
+                  <div className="flex min-w-0 items-center gap-4">
+                    <span
+                      className="font-display w-6 shrink-0 text-xl font-extrabold"
+                      style={{ color: C.inverseMuted }}
+                    >
+                      {i + 1}
+                    </span>
+                    <span
+                      className="max-w-[180px] truncate text-base font-bold sm:max-w-[300px]"
+                      style={{ color: C.inverse }}
+                    >
+                      {manga.title}
+                    </span>
                   </div>
-                  <span className="rounded-full border border-line-subtle bg-surface-canvas px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-content-secondary">
+                  <span
+                    className="shrink-0 rounded-full px-3 py-1.5 text-xs font-bold uppercase tracking-wider"
+                    style={{
+                      color: C.inverseMuted,
+                      border: `1px solid ${C.lineInverse}`,
+                    }}
+                  >
                     {manga.pages} pages
                   </span>
                 </div>
@@ -118,9 +219,19 @@ export function AnalyticsClient({ totalPages, formattedTime, averageSpeed, topMa
           )}
         </div>
 
-        <div className="mt-10 flex items-center justify-between gap-4 border-t border-line-subtle pt-5 text-content-secondary">
-          <span className="text-[10px] font-black uppercase tracking-[0.18em]">yomireader.com</span>
-          <span className="text-xs font-bold tracking-wide">{averageSpeed}s / page average</span>
+        <div
+          className="mt-10 flex items-center justify-between gap-4 pt-5"
+          style={{
+            color: C.inverseMuted,
+            borderTop: `1px solid ${C.lineInverse}`,
+          }}
+        >
+          <span className="text-xs font-bold tracking-wide">{SITE_HOST}</span>
+          <span className="text-xs font-bold tracking-wide">
+            {rhythm && rhythm.rhythmDays > 0
+              ? `${rhythm.rhythmDays}-night rhythm`
+              : `${averageSpeed}s / page average`}
+          </span>
         </div>
       </div>
 
@@ -130,7 +241,7 @@ export function AnalyticsClient({ totalPages, formattedTime, averageSpeed, topMa
         disabled={rhythmQuery.isLoading}
         className="h-12 px-8 font-bold"
       >
-        <Download className="h-5 w-5 mr-2" />
+        <Download className="mr-2 h-5 w-5" aria-hidden="true" />
         Export recap
       </Button>
     </div>

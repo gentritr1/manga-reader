@@ -9,6 +9,14 @@ import { Input } from "@/components/ui/input";
 import { YomiMark } from "@/components/brand/yomi-mark";
 import { SITE_HOST, SITE_NAME } from "@/lib/site";
 import { cn } from "@/lib/utils";
+import { useLocalWeekStats } from "@/lib/use-local-week-stats";
+import { formatWeekLine, type LocalWeekStats } from "@/lib/local-reading-stats";
+import {
+  SHARE_CARD_BACKGROUND_IMAGE,
+  SHARE_CARD_COLORS,
+  SHARE_CARD_SHELF_EDGE,
+  SHARE_SPINE_BACKGROUNDS,
+} from "@/lib/share-card-theme";
 
 type ShelfItem = {
   id: string;
@@ -55,15 +63,6 @@ const TEMPLATES: { name: string; color: string }[] = [
   { name: "Finished", color: "emerald" },
   { name: "Weekend binge", color: "amber" },
   { name: "All-time favorites", color: "rose" },
-];
-
-const SHARE_SPINE_BACKGROUNDS = [
-  "linear-gradient(180deg, var(--brand-violet), color-mix(in oklch, var(--brand-violet) 42%, var(--reader-canvas)))",
-  "linear-gradient(180deg, var(--brand-cyan), color-mix(in oklch, var(--brand-cyan) 34%, var(--reader-canvas)))",
-  "linear-gradient(180deg, var(--brand-coral), color-mix(in oklch, var(--brand-coral) 34%, var(--reader-canvas)))",
-  "linear-gradient(180deg, var(--library), color-mix(in oklch, var(--library) 36%, var(--reader-canvas)))",
-  "linear-gradient(180deg, var(--discovery), color-mix(in oklch, var(--discovery) 30%, var(--reader-canvas)))",
-  "linear-gradient(180deg, var(--action-primary), color-mix(in oklch, var(--action-primary) 34%, var(--reader-canvas)))",
 ];
 
 const SHARE_SLOT_OFFSETS = [26, 0, 18, 8, 30, 12];
@@ -197,6 +196,7 @@ export function ShelvesClient({ initialShelves }: { initialShelves: Shelf[] }) {
   const [exportError, setExportError] = useState<string | null>(null);
   const [coverSourcesByShelf, setCoverSourcesByShelf] =
     useState<LoadedCoverSources>({});
+  const weekStats = useLocalWeekStats();
 
   const existingNames = new Set(
     initialShelves.map((s) => s.name.trim().toLowerCase()),
@@ -431,6 +431,7 @@ export function ShelvesClient({ initialShelves }: { initialShelves: Shelf[] }) {
                 key={shelf.id}
                 shelf={shelf}
                 coverSources={coverSourcesByShelf[shelf.id] ?? {}}
+                weekStats={weekStats}
               />
             ))}
           </div>
@@ -572,9 +573,11 @@ function ShelfCard({
 function ShareShelfCard({
   shelf,
   coverSources,
+  weekStats,
 }: {
   shelf: Shelf;
   coverSources: Record<string, string>;
+  weekStats: LocalWeekStats | null;
 }) {
   const count = shelf.items.length;
   const slots = Array.from({ length: SHARE_COVER_LIMIT }, (_, index) => ({
@@ -585,32 +588,31 @@ function ShareShelfCard({
     shelf.name.length > 44 ? 58 : shelf.name.length > 28 ? 68 : 82;
   const countLabel =
     count === 0 ? "Empty shelf" : `${count} title${count === 1 ? "" : "s"}`;
+  const weekLine = formatWeekLine(weekStats);
 
   return (
     <div
       id={`share-shelf-${shelf.id}`}
-      className="dark relative overflow-hidden"
+      className="relative overflow-hidden"
       style={{
         width: SHARE_CARD_WIDTH,
         height: SHARE_CARD_HEIGHT,
-        backgroundColor: "var(--reader-canvas)",
-        backgroundImage:
-          "radial-gradient(circle at 50% 20%, color-mix(in oklch, var(--brand-violet) 22%, transparent), transparent 36%), radial-gradient(circle at 80% 56%, color-mix(in oklch, var(--brand-cyan) 14%, transparent), transparent 28%), linear-gradient(180deg, var(--surface-spotlight) 0%, var(--reader-canvas) 72%)",
-        color: "var(--content-inverse)",
-        fontFamily: "var(--font-sans)",
+        backgroundColor: SHARE_CARD_COLORS.canvas,
+        backgroundImage: SHARE_CARD_BACKGROUND_IMAGE,
+        color: SHARE_CARD_COLORS.inverse,
       }}
     >
       <div
         aria-hidden="true"
         className="absolute inset-x-16 top-16 h-1.5 rounded-full"
-        style={{ backgroundImage: "var(--shelf-edge)" }}
+        style={{ backgroundImage: SHARE_CARD_SHELF_EDGE }}
       />
 
       <div className="absolute inset-x-20 top-36">
         <p
-          className="font-black"
+          className="font-display font-extrabold"
           style={{
-            color: "var(--content-inverse-muted)",
+            color: SHARE_CARD_COLORS.inverseMuted,
             fontSize: 28,
             letterSpacing: 0,
           }}
@@ -618,11 +620,11 @@ function ShareShelfCard({
           {SITE_NAME} shelf
         </p>
         <h2
-          className="mt-7 font-black leading-[0.98]"
+          className="font-display mt-7 font-extrabold leading-[0.98]"
           style={{
             display: "-webkit-box",
             fontSize: titleFontSize,
-            letterSpacing: 0,
+            letterSpacing: -0.5,
             maxHeight: 176,
             overflow: "hidden",
             WebkitBoxOrient: "vertical",
@@ -635,7 +637,7 @@ function ShareShelfCard({
         <p
           className="mt-8 font-bold"
           style={{
-            color: "var(--content-inverse-muted)",
+            color: SHARE_CARD_COLORS.inverseMuted,
             fontSize: 30,
             letterSpacing: 0,
           }}
@@ -650,17 +652,15 @@ function ShareShelfCard({
             aria-hidden="true"
             className="absolute inset-x-0 bottom-[190px] h-8 rounded-full"
             style={{
-              backgroundImage: "var(--shelf-edge)",
-              boxShadow:
-                "0 32px 70px color-mix(in oklch, var(--brand-violet) 28%, transparent)",
+              backgroundImage: SHARE_CARD_SHELF_EDGE,
+              boxShadow: `0 32px 70px ${SHARE_CARD_COLORS.violetTint22}`,
             }}
           />
           <div
             aria-hidden="true"
             className="absolute inset-x-8 bottom-[156px] h-20 rounded-[999px]"
             style={{
-              background:
-                "linear-gradient(180deg, color-mix(in oklch, var(--content-inverse) 14%, transparent), color-mix(in oklch, var(--reader-canvas) 76%, transparent))",
+              background: `linear-gradient(180deg, ${SHARE_CARD_COLORS.lineInverse}, transparent)`,
               filter: "blur(18px)",
             }}
           />
@@ -681,22 +681,56 @@ function ShareShelfCard({
         </div>
       </div>
 
-      <footer className="absolute inset-x-20 bottom-20 flex items-center justify-between gap-8 border-t border-line-inverse pt-8">
-        <span
-          className="font-black"
-          style={{ fontSize: 24, letterSpacing: 0, color: "var(--content-inverse)" }}
-        >
-          {SITE_HOST}
-        </span>
-        <span
-          className="font-bold"
+      {weekLine && (
+        <div
+          className="absolute inset-x-20 bottom-[150px] flex items-center gap-3 rounded-full px-6 py-4"
           style={{
-            color: "var(--content-inverse-muted)",
+            backgroundColor: SHARE_CARD_COLORS.violetTint16,
+            border: `1px solid ${SHARE_CARD_COLORS.lineInverse}`,
+          }}
+        >
+          <span
+            aria-hidden="true"
+            className="h-3 w-3 shrink-0 rounded-full"
+            style={{ backgroundColor: SHARE_CARD_COLORS.violet }}
+          />
+          <span
+            className="font-display font-extrabold"
+            style={{ fontSize: 26, letterSpacing: 0, color: SHARE_CARD_COLORS.inverse }}
+          >
+            My week
+          </span>
+          <span
+            className="font-semibold"
+            style={{ fontSize: 24, letterSpacing: 0, color: SHARE_CARD_COLORS.inverseMuted }}
+          >
+            {weekLine}
+          </span>
+        </div>
+      )}
+
+      <footer
+        className="absolute inset-x-20 bottom-20 flex items-center justify-between gap-8 pt-8"
+        style={{ borderTop: `1px solid ${SHARE_CARD_COLORS.lineInverse}` }}
+      >
+        <div className="flex items-center gap-3">
+          <YomiMark className="h-9 w-9" />
+          <span
+            className="font-display font-extrabold"
+            style={{ fontSize: 26, letterSpacing: 0, color: SHARE_CARD_COLORS.inverse }}
+          >
+            {SITE_NAME}
+          </span>
+        </div>
+        <span
+          className="font-semibold"
+          style={{
+            color: SHARE_CARD_COLORS.inverseMuted,
             fontSize: 24,
             letterSpacing: 0,
           }}
         >
-          Made with {SITE_NAME}
+          {SITE_HOST}
         </span>
       </footer>
     </div>
@@ -717,13 +751,14 @@ function ShareShelfSlot({
 
   return (
     <div
-      className="relative shrink-0 overflow-hidden rounded-[22px] ring-1 ring-line-inverse"
+      className="relative shrink-0 overflow-hidden rounded-[22px]"
       style={{
         width,
         height,
         background: SHARE_SPINE_BACKGROUNDS[index % SHARE_SPINE_BACKGROUNDS.length],
-        boxShadow:
-          "0 28px 60px color-mix(in oklch, var(--reader-canvas) 58%, transparent)",
+        boxShadow: `0 28px 60px ${SHARE_CARD_COLORS.canvas}`,
+        outline: `1px solid ${SHARE_CARD_COLORS.lineInverse}`,
+        outlineOffset: -1,
         transform: `translateY(${SHARE_SLOT_OFFSETS[index]}px) rotate(${SHARE_SLOT_ROTATIONS[index]}deg)`,
       }}
     >
@@ -744,17 +779,17 @@ function ShareShelfSlot({
         <div className="absolute inset-0">
           <div
             className="absolute inset-y-5 left-4 w-1 rounded-full"
-            style={{ background: "color-mix(in oklch, var(--content-inverse) 48%, transparent)" }}
+            style={{ background: "oklch(0.96 0.018 284 / 0.48)" }}
           />
           <div
             className="absolute bottom-5 left-5 right-5 h-3 rounded-full"
-            style={{ background: "color-mix(in oklch, var(--content-inverse) 28%, transparent)" }}
+            style={{ background: "oklch(0.96 0.018 284 / 0.28)" }}
           />
           {title && (
             <span
-              className="absolute inset-x-6 top-7 font-black leading-none"
+              className="font-display absolute inset-x-6 top-7 font-extrabold leading-none"
               style={{
-                color: "color-mix(in oklch, var(--content-inverse) 84%, transparent)",
+                color: "oklch(0.96 0.018 284 / 0.84)",
                 fontSize: 18,
                 letterSpacing: 0,
                 overflow: "hidden",

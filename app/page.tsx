@@ -1,6 +1,8 @@
 import { getLatestUpdates, getPopular } from "@/lib/mangadex-server";
 import { Hero } from "@/components/home/hero";
 import { ContinueReading } from "@/components/home/continue-reading";
+import { ReadingStats } from "@/components/home/reading-stats";
+import { TonightsPlan } from "@/components/home/tonights-plan";
 import { NewForYou } from "@/components/home/new-for-you";
 import { Section } from "@/components/manga/section";
 import { MangaGrid } from "@/components/manga/manga-grid";
@@ -157,6 +159,10 @@ export default async function HomePage() {
           starterManga={starterManga}
           reservedMangaIds={reservedContinueReadingIds}
         />
+
+        <ReadingStats />
+
+        <TonightsPlan />
 
         <NewForYou />
 
