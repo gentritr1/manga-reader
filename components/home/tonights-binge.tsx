@@ -19,7 +19,7 @@ export function TonightsBinge({ pick }: { pick: TonightsBingePick }) {
   return (
     <section className="space-y-4">
       <div className="max-w-2xl space-y-1">
-        <h2 className="text-xl font-bold tracking-tight sm:text-2xl">
+        <h2 className="font-display text-xl font-bold tracking-tight sm:text-2xl">
           Tonight&apos;s binge
         </h2>
         <p className="text-sm leading-6 text-content-secondary sm:text-base">

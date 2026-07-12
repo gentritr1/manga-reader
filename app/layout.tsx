@@ -1,6 +1,16 @@
 import type { Metadata } from "next";
+import { Bricolage_Grotesque } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
+
+// Display typeface for headings and the wordmark. Body text stays on the system
+// --font-sans stack; this variable feeds the Tailwind `font-display` utility
+// (see --font-display in globals.css). Variable font, so no explicit weights.
+const bricolage = Bricolage_Grotesque({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-display-src",
+});
 import { Providers } from "@/components/providers";
 import { AdsterraSocialAd } from "@/components/ads/internal-ad-preview";
 import { AdGateProvider } from "@/components/ads/ad-gate-provider";
@@ -69,7 +79,7 @@ export default function RootLayout({
       lang="en"
       suppressHydrationWarning
       data-scroll-behavior="smooth"
-      className="h-full antialiased"
+      className={`h-full antialiased ${bricolage.variable}`}
     >
       <body className="min-h-full flex flex-col">
         <Providers>

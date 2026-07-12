@@ -18,7 +18,7 @@ export function Section({
     <section className="space-y-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="max-w-2xl space-y-1">
-          <h2 className="text-xl font-bold tracking-tight sm:text-2xl">
+          <h2 className="font-display text-xl font-bold tracking-tight sm:text-2xl">
             {title}
           </h2>
           {description && (

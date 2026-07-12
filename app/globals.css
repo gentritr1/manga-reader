@@ -281,6 +281,11 @@
   --font-sans:
     ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
     sans-serif;
+  /* Display typeface for headings + wordmark (Bricolage Grotesque via
+     next/font). --font-display-src is injected on <html> by next/font; this
+     generates the `font-display` utility and falls back to the system stack
+     before the webfont loads (display: swap). */
+  --font-display: var(--font-display-src), var(--font-sans);
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
 

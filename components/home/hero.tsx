@@ -75,7 +75,7 @@ export function Hero({
           </div>
 
           <div className="min-w-0 space-y-4 sm:space-y-6">
-            <h1 className="max-w-full break-words [overflow-wrap:anywhere] text-3xl font-black leading-[1.08] tracking-tight [text-wrap:balance] sm:text-5xl lg:text-6xl">
+            <h1 className="font-display max-w-full break-words [overflow-wrap:anywhere] text-3xl font-extrabold leading-[1.08] tracking-tight [text-wrap:balance] sm:text-5xl lg:text-6xl">
               {manga.title}
             </h1>
             <p className="mx-auto line-clamp-3 max-w-full break-words text-base leading-relaxed text-content-inverse-muted [overflow-wrap:anywhere] sm:max-w-2xl sm:text-xl sm:leading-8 lg:mx-0">

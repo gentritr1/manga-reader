@@ -23,7 +23,7 @@ export function Navbar() {
           aria-label="Manga Orbit home"
         >
           <YomiMark className="h-10 w-10 shrink-0 [filter:drop-shadow(0_10px_18px_rgb(36_19_95_/_0.22))]" />
-          <span className="hidden text-lg font-black tracking-tight min-[420px]:inline">
+          <span className="hidden font-display text-lg font-extrabold tracking-tight min-[420px]:inline">
             Manga Orbit
           </span>
         </Link>

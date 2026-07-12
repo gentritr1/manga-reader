@@ -76,10 +76,12 @@ popular, or jump to latest updates without hunting through the page.
 
 CTA ownership:
 
-- Coral is for primary reading or starting actions.
-- Violet is for brand, selected states, focus, and saved/library framing.
+- Violet owns primary reading and starting actions, plus brand, selected states,
+  focus, and saved/library framing — one accent frames the whole product.
 - Cyan is for future discovery/newness cues, not primary CTAs.
-- Saved/in-library states belong to violet library tokens, never coral.
+- Coral was retired from the UI (July 2026); reading actions no longer use it.
+- Hierarchy for reading actions comes from the filled-violet vs ghost button
+  pattern and display typography, not from a second accent color.
 
 ## Voice
 
@@ -103,11 +105,13 @@ Avoid:
 
 ## Color Roles
 
-Yomi uses violet as the brand frame, coral as the reading action, and cyan as a
-discovery accent.
+Yomi uses violet as its single brand accent — brand frame, reading actions, and
+selected states all share it — with cyan as a discovery accent.
 
-- Violet: brand, focus, selected state, immersive framing.
-- Coral: primary reading actions only.
+- Violet: brand, focus, selected state, immersive framing, and primary reading
+  actions.
+- Coral: retired from the UI (July 2026). Preserved only in the logo mark; not
+  used for CTAs or reading actions.
 - Cyan: discovery, newness, recommendation cues.
 - Green/blue/amber/red: domain status only.
 - Cover art: the loudest visual material; UI colors should frame it.
@@ -116,9 +120,17 @@ Do not add one-off colors in components. Add or reuse a semantic token instead.
 
 ## Typography
 
-Use the system-backed `--font-sans` token until Yomi has a clearly licensed
-brand typeface. Do not commit downloaded webfont files unless the license
-explicitly allows self-hosted font serving from the deployed app.
+Two-tier system (since July 2026):
+
+- `--font-display` — Bricolage Grotesque (OFL-licensed, self-hosted via
+  `next/font/google`, no committed font files). Reserved for the wordmark and
+  h1/h2 headings. Weight ceiling is 800; never apply `font-black` (900) to
+  display type — it faux-bolds.
+- `--font-sans` — the system stack. Everything else: body, buttons, chapter
+  lists, metadata. Keeps payload flat and long-form reading native to the OS.
+
+Do not commit downloaded webfont files; fonts enter only through `next/font`
+with an explicit open license.
 
 ## Logo Mark
 

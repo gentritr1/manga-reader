@@ -166,7 +166,7 @@ export default async function MangaDetailPage({
 
             <div className="min-w-0 flex-1 space-y-4">
               <div>
-                <h1 className="mx-auto max-w-[24rem] text-2xl font-extrabold tracking-tight [text-wrap:balance] min-[480px]:mx-0 min-[480px]:max-w-none min-[480px]:text-2xl sm:text-3xl">
+                <h1 className="font-display mx-auto max-w-[24rem] text-2xl font-extrabold tracking-tight [text-wrap:balance] min-[480px]:mx-0 min-[480px]:max-w-none min-[480px]:text-2xl sm:text-3xl">
                   {manga.title}
                 </h1>
                 {manga.author && (
@@ -233,7 +233,7 @@ export default async function MangaDetailPage({
 
       <div className="relative mx-auto max-w-5xl px-4 pb-8 pt-2">
         <div className="space-y-4">
-          <h2 className="text-xl font-bold">
+          <h2 className="font-display text-xl font-bold">
             Chapters{" "}
             <span className="text-base font-normal text-muted-foreground">
               ({feed.total})

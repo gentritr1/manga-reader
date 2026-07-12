@@ -278,6 +278,11 @@ function ReaderContent(props: Props) {
   const [mode, setMode] = useState<Mode>("vertical");
   const [zenMode, setZenMode] = useState(false);
   const toggleZenMode = useCallback(() => setZenMode((z) => !z), []);
+  // Idle-fade for the top bar: hides after inactivity, restores on any activity
+  // or when a control inside it holds focus. Independent of zen mode.
+  const [chromeIdle, setChromeIdle] = useState(false);
+  const chromeIdleRef = useRef(false);
+  const readerHeaderRef = useRef<HTMLElement>(null);
   // Paged slides: 0 = intro, 1..N = pages, N+1 = end.
   const [slide, setSlide] = useState(0);
   const [slideDirection, setSlideDirection] = useState<1 | -1>(1);
@@ -314,6 +319,55 @@ function ReaderContent(props: Props) {
         : DEFAULT_SERIES_TINT,
     );
   }, [mangaId]);
+
+  // Auto-fade the top bar after ~2.5s of no pointer / scroll / key / touch
+  // activity; any activity or focus landing inside the bar restores it
+  // instantly. State only flips when crossing the idle boundary, so mousemove
+  // spam does not re-render. Focus is honoured two ways: focusin wakes it, and
+  // the fade timer refuses to hide while a control inside the bar has focus.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const IDLE_MS = 2500;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const schedule = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        const header = readerHeaderRef.current;
+        if (header && header.contains(document.activeElement)) {
+          schedule();
+          return;
+        }
+        chromeIdleRef.current = true;
+        setChromeIdle(true);
+      }, IDLE_MS);
+    };
+    const wake = () => {
+      if (chromeIdleRef.current) {
+        chromeIdleRef.current = false;
+        setChromeIdle(false);
+      }
+      schedule();
+    };
+
+    window.addEventListener("pointermove", wake, { passive: true });
+    window.addEventListener("pointerdown", wake, { passive: true });
+    window.addEventListener("scroll", wake, { passive: true });
+    window.addEventListener("touchstart", wake, { passive: true });
+    window.addEventListener("keydown", wake);
+    document.addEventListener("focusin", wake);
+    schedule();
+
+    return () => {
+      if (timer) clearTimeout(timer);
+      window.removeEventListener("pointermove", wake);
+      window.removeEventListener("pointerdown", wake);
+      window.removeEventListener("scroll", wake);
+      window.removeEventListener("touchstart", wake);
+      window.removeEventListener("keydown", wake);
+      document.removeEventListener("focusin", wake);
+    };
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -829,7 +883,7 @@ function ReaderContent(props: Props) {
         </div>
       )}
       {/* Top bar */}
-      <header className={cn("sticky top-0 z-30 flex min-h-14 items-center gap-3 border-b border-reader-line bg-reader-chrome px-4 backdrop-blur transition-all duration-300", zenMode && "-translate-y-full opacity-0 pointer-events-none")}>
+      <header ref={readerHeaderRef} className={cn("sticky top-0 z-30 flex min-h-14 items-center gap-3 border-b border-reader-line bg-reader-chrome px-4 backdrop-blur transition-all duration-300", zenMode && "-translate-y-full opacity-0 pointer-events-none", !zenMode && chromeIdle && "opacity-0 pointer-events-none")}>
         <Link
           href={backHref}
           prefetch={false}
@@ -1335,6 +1389,9 @@ function PagedReader({
   const prevDisabled = isIntro && !prevId;
   const nextDisabled = isEnd && !nextId;
 
+  // Directional page-turn: NEXT slides the incoming page in from the right,
+  // PREV from the left, so the motion encodes reading direction. Reduced-motion
+  // drops the translate and keeps a plain opacity fade.
   const slideMotion = reduceMotion
     ? {
         initial: { opacity: 0 },
@@ -1342,9 +1399,9 @@ function PagedReader({
         exit: { opacity: 0 },
       }
     : {
-        initial: { opacity: 0, x: slideDirection > 0 ? 12 : -12 },
+        initial: { opacity: 0, x: slideDirection > 0 ? 28 : -28 },
         animate: { opacity: 1, x: 0 },
-        exit: { opacity: 0, x: slideDirection > 0 ? -12 : 12 },
+        exit: { opacity: 0, x: slideDirection > 0 ? -28 : 28 },
       };
   const slideContent = isIntro ? (
     <div className="w-full max-w-xl space-y-6 text-center">
@@ -1430,7 +1487,7 @@ function PagedReader({
             initial={slideMotion.initial}
             animate={slideMotion.animate}
             exit={slideMotion.exit}
-            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: 0.2, ease: [0.2, 0, 0, 1] }}
             className="relative flex w-full justify-center"
           >
             {slideContent}

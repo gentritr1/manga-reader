@@ -136,7 +136,7 @@ export function BrowseClient() {
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-8">
       <div className="mb-6 max-w-2xl space-y-2">
-        <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">
+        <h1 className="font-display text-2xl font-extrabold tracking-tight sm:text-3xl">
           Browse manga
         </h1>
         <p className="text-sm leading-6 text-muted-foreground">
