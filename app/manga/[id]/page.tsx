@@ -16,6 +16,7 @@ import { buttonClassName } from "@/components/ui/button";
 import { FavoriteButton } from "@/components/manga/favorite-button";
 import { Synopsis } from "@/components/manga/synopsis";
 import { ChapterList } from "@/components/manga/chapter-list";
+import { ContinueReadingCta } from "@/components/manga/continue-reading-cta";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { AddToShelfButton } from "@/components/manga/add-to-shelf-button";
@@ -91,8 +92,10 @@ export default async function MangaDetailPage({
   // multiple scanlation-group rows per number, preferring a readable one).
   const firstChapter = pickFirstReadableChapter(feed.chapters);
   const readableCount = feed.chapters.filter(isReadable).length;
-  // Chapter list stays newest-first; sort numerically then reverse.
-  const displayChapters = [...sortChaptersByNumber(feed.chapters)].reverse();
+  // Numeric-ascending; the client ChapterList groups by volume and applies the
+  // newest-first default + sort toggle. The Continue CTA also reads it ascending
+  // to resolve the next chapter after a finished one.
+  const sortedChapters = sortChaptersByNumber(feed.chapters);
   // All chapters are licensed/official links, so nothing can be read in-app.
   const licensedOnly = feed.chapters.length > 0 && readableCount === 0;
 
@@ -212,6 +215,10 @@ export default async function MangaDetailPage({
                     <BookOpen className="h-5 w-5" /> Start reading
                   </Link>
                 )}
+                <ContinueReadingCta
+                  mangaId={manga.id}
+                  chapters={sortedChapters}
+                />
                 {session?.user?.id && (
                   <AddToShelfButton
                     shelves={shelves}
@@ -256,7 +263,8 @@ export default async function MangaDetailPage({
             </div>
           )}
           <ChapterList
-            chapters={displayChapters}
+            chapters={sortedChapters}
+            mangaId={manga.id}
             secondsPerPage={readingAnalytics?.averageSecondsPerPage}
           />
         </div>
