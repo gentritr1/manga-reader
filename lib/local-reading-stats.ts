@@ -73,6 +73,31 @@ export function readAllLocalProgress(): LocalProgressEntry[] {
   return entries;
 }
 
+/**
+ * Remove a single chapter's locally stored progress (used by the /history page's
+ * per-row delete). No-op during SSR or on storage errors. The Continue rail and
+ * planner read this same storage, so they reflect the removal on their next read.
+ */
+export function removeLocalProgress(chapterId: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.removeItem(`${PROGRESS_STORAGE_PREFIX}${chapterId}`);
+  } catch {}
+}
+
+/** Remove every locally stored chapter-progress entry (Clear history). */
+export function clearAllLocalProgress(): void {
+  if (typeof window === "undefined") return;
+  try {
+    const keys: string[] = [];
+    for (let index = 0; index < localStorage.length; index += 1) {
+      const key = localStorage.key(index);
+      if (key?.startsWith(PROGRESS_STORAGE_PREFIX)) keys.push(key);
+    }
+    for (const key of keys) localStorage.removeItem(key);
+  } catch {}
+}
+
 export interface LocalWeekStats {
   /** Current consecutive-night reading rhythm (house grace rules). 0 = none. */
   rhythmNights: number;

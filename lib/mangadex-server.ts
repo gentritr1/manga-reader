@@ -73,12 +73,21 @@ export async function getChapters(
      * expanded group payload from every row.
      */
     includeScanlationGroup?: boolean;
+    /**
+     * MangaDex translatedLanguage code for the chapter feed. Defaults to "en"
+     * so callers that don't pass it behave exactly as before. The manga detail
+     * page and reader pass the reader's global preference (from the yomi-language
+     * cookie) so the chapter list + prev/next neighbors match the chosen
+     * language. pickFirstReadableChapter / Start-reading operate on whatever feed
+     * they receive, so changing this never breaks continue logic.
+     */
+    translatedLanguage?: string;
   } = {},
 ): Promise<{ chapters: SimpleChapter[]; total: number }> {
   const q = new URLSearchParams();
   q.set("limit", String(opts.limit ?? 100));
   q.set("offset", String(opts.offset ?? 0));
-  q.append("translatedLanguage[]", "en");
+  q.append("translatedLanguage[]", opts.translatedLanguage || "en");
   if (opts.includeScanlationGroup !== false) {
     q.append("includes[]", "scanlation_group");
   }

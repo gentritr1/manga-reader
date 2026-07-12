@@ -10,6 +10,8 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
   type RefObject,
 } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
@@ -19,6 +21,7 @@ import {
   ChevronRight,
   Columns2,
   Heart,
+  Keyboard,
   Maximize2,
   Minimize2,
   Rows3,
@@ -57,6 +60,16 @@ const GLOBAL_MODE_KEY = "reader-mode";
 // Viewport threshold below which double-page spread silently falls back to
 // single pages (state is preserved, only rendering/navigation change).
 const SPREAD_MIN_WIDTH = 1024;
+
+// Paged-mode zoom bounds. Zoom applies to the current page/spread via a CSS
+// transform (1x–3x); vertical mode never zooms (fit modes cover it).
+const ZOOM_MIN = 1;
+const ZOOM_MAX = 3;
+const ZOOM_STEP = 0.5;
+
+function clampZoom(value: number): number {
+  return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(value * 100) / 100));
+}
 
 interface ReaderPrefs {
   mode: Mode;
@@ -455,6 +468,25 @@ function ReaderContent(props: Props) {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsTriggerRef = useRef<HTMLButtonElement>(null);
   const settingsPanelRef = useRef<HTMLDivElement>(null);
+  // Keyboard-shortcuts overlay (opened with '?' or the settings-panel hint).
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const shortcutsRestoreRef = useRef<HTMLElement | null>(null);
+  const openShortcuts = useCallback(() => {
+    shortcutsRestoreRef.current = document.activeElement as HTMLElement | null;
+    setShortcutsOpen(true);
+  }, []);
+  const closeShortcuts = useCallback(() => {
+    setShortcutsOpen(false);
+    const restore = shortcutsRestoreRef.current;
+    requestAnimationFrame(() => restore?.focus?.());
+  }, []);
+  // Paged-mode zoom (transform scale + pan offset). Vertical mode ignores these.
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const resetZoom = useCallback(() => {
+    setZoom(1);
+    setPan({ x: 0, y: 0 });
+  }, []);
   const doubleSpread = spread === "double" && isWideViewport;
   const effectiveFit = effectiveFitFor(fit, mode);
   const [zenMode, setZenMode] = useState(false);
@@ -899,21 +931,26 @@ function ReaderContent(props: Props) {
   // reader-mode key (legacy default) → hardcoded defaults. A NEW manga (no
   // per-title prefs yet) starts from the global default mode; no key is written
   // until the user actually changes a setting.
+  // Client-only reconciliation from localStorage, applied SYNCHRONOUSLY in the
+  // effect (the same intentional pattern as the image-quality effect above).
+  // This used to hop through requestAnimationFrame, but that made the restore
+  // cancelable: the frame callback could be dropped around view-transition
+  // navigations, leaving stored prefs (mode/direction/spread/fit) silently
+  // unapplied. A direct setState in a mount effect cannot be lost, and it also
+  // applies one frame earlier than the old rAF path.
   useEffect(() => {
     const prefs = mangaId ? readReaderPrefs(mangaId) : null;
-    const frame = requestAnimationFrame(() => {
-      if (prefs) {
-        setMode(prefs.mode);
-        setDirection(prefs.direction);
-        setSpread(prefs.spread);
-        setSpreadOffset(prefs.spreadOffset);
-        setFit(prefs.fit);
-        return;
-      }
-      const savedMode = localStorage.getItem(GLOBAL_MODE_KEY);
-      if (savedMode === "vertical" || savedMode === "paged") setMode(savedMode);
-    });
-    return () => cancelAnimationFrame(frame);
+    if (prefs) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setMode(prefs.mode);
+      setDirection(prefs.direction);
+      setSpread(prefs.spread);
+      setSpreadOffset(prefs.spreadOffset);
+      setFit(prefs.fit);
+      return;
+    }
+    const savedMode = localStorage.getItem(GLOBAL_MODE_KEY);
+    if (savedMode === "vertical" || savedMode === "paged") setMode(savedMode);
   }, [mangaId]);
 
   // Track viewport width for the spread threshold.
@@ -1209,6 +1246,59 @@ function ReaderContent(props: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [mode, toggleZenMode]);
 
+  // Any page change (arrows, side-zone clicks, resume) resets zoom to 1x so the
+  // next page always starts un-zoomed and un-panned. Reacting to the external
+  // `slide` change is exactly what this effect is for.
+  useEffect(() => {
+    // Resetting zoom in response to the external `slide` change is the intent of
+    // this effect (not a render-derived cascade), so the setState is deliberate.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    resetZoom();
+  }, [slide, resetZoom]);
+
+  // '?' (Shift+/) opens the shortcuts overlay in both modes. Guarded by the same
+  // capture-target checks as every other reader shortcut, so it never fires while
+  // typing or while a dialog (settings/overlay) holds focus.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key !== "?") return;
+      if (isInteractiveEventTarget(e) || isKeyboardCaptureTarget()) return;
+      e.preventDefault();
+      openShortcuts();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [openShortcuts]);
+
+  // Paged-mode zoom keys: +/= zoom in, -/_ zoom out, 0 reset. Only on a content
+  // page (not intro/end), and never while a control/dialog has focus. Vertical
+  // mode deliberately ignores these — fit modes cover its sizing.
+  useEffect(() => {
+    if (mode !== "paged") return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (isInteractiveEventTarget(e) || isKeyboardCaptureTarget()) return;
+      if (slide <= 0 || slide > total) return; // only on content pages
+      if (e.key === "+" || e.key === "=") {
+        e.preventDefault();
+        setZoom((z) => clampZoom(z + ZOOM_STEP));
+      } else if (e.key === "-" || e.key === "_") {
+        e.preventDefault();
+        setZoom((z) => {
+          const next = clampZoom(z - ZOOM_STEP);
+          if (next <= 1) setPan({ x: 0, y: 0 });
+          return next;
+        });
+      } else if (e.key === "0") {
+        e.preventDefault();
+        resetZoom();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mode, slide, total, resetZoom]);
+
   // Preload neighbour images in paged mode. Warm the next ~3 logical pages so a
   // page turn rarely waits on the network; double spread advances two pages per
   // view, so reach one page further to cover the next two views. Bounded on
@@ -1337,6 +1427,13 @@ function ReaderContent(props: Props) {
                 onToggleSpreadOffset={toggleSpreadOffset}
                 onChangeFit={changeFit}
                 onChangeImageQuality={changeImageQuality}
+                onOpenShortcuts={() => {
+                  // Restore focus to the settings trigger when the overlay later
+                  // closes, then swap the settings panel for the overlay.
+                  settingsTriggerRef.current?.focus();
+                  setSettingsOpen(false);
+                  openShortcuts();
+                }}
                 onClose={() => closeSettings(true)}
               />
             )}
@@ -1384,6 +1481,10 @@ function ReaderContent(props: Props) {
           fit={effectiveFit}
           onNext={next}
           onPrev={prev}
+          zoom={zoom}
+          pan={pan}
+          onSetZoom={setZoom}
+          onSetPan={setPan}
           zenMode={zenMode}
           toggleZenMode={toggleZenMode}
           chapterEndStats={chapterEndStats}
@@ -1426,6 +1527,14 @@ function ReaderContent(props: Props) {
             </button>
           </div>
         </div>
+      )}
+
+      {shortcutsOpen && (
+        <ReaderShortcutsOverlay
+          mode={mode}
+          direction={direction}
+          onClose={closeShortcuts}
+        />
       )}
     </div>
   );
@@ -1852,6 +1961,10 @@ function PagedReader({
   fit,
   onNext,
   onPrev,
+  zoom,
+  pan,
+  onSetZoom,
+  onSetPan,
   prevId,
   nextId,
   mangaId,
@@ -1878,6 +1991,10 @@ function PagedReader({
   fit: FitMode;
   onNext: () => void;
   onPrev: () => void;
+  zoom: number;
+  pan: { x: number; y: number };
+  onSetZoom: (updater: number | ((z: number) => number)) => void;
+  onSetPan: (pan: { x: number; y: number }) => void;
   zenMode: boolean;
   toggleZenMode: () => void;
   chapterEndStats: ReaderSessionSnapshot | null;
@@ -1918,6 +2035,75 @@ function PagedReader({
   // half advances (next), the RIGHT half goes back.
   const leftZoneAction = direction === "rtl" ? onNext : onPrev;
   const rightZoneAction = direction === "rtl" ? onPrev : onNext;
+
+  // --- Paged-mode zoom (transform scale + pan) ------------------------------
+  // While zoomed >1x the page/spread is scaled and can be dragged; the side
+  // page-turn zones are removed so drags reach the image (arrows still turn the
+  // page, which resets zoom). Vertical mode never reaches this component's zoom.
+  const zoomRef = useRef<HTMLDivElement>(null);
+  const zoomed = zoom > 1;
+  const [dragging, setDragging] = useState(false);
+  const panStart = useRef<{
+    px: number;
+    py: number;
+    baseX: number;
+    baseY: number;
+  } | null>(null);
+
+  // ctrl/cmd + wheel zoom. Attached natively (non-passive) so preventDefault can
+  // stop the browser's page-zoom while over the reader.
+  useEffect(() => {
+    const el = zoomRef.current;
+    if (!el || !isContent) return;
+    const onWheel = (e: WheelEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      onSetZoom((z) => {
+        const next = clampZoom(z + (e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP));
+        if (next <= 1) onSetPan({ x: 0, y: 0 });
+        return next;
+      });
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [isContent, onSetZoom, onSetPan]);
+
+  // Double-click toggles 1x <-> 2x. Zoom is centered (transform-origin center);
+  // pointer-anchored zoom was deliberately not attempted to keep the pan math
+  // simple and predictable.
+  const handleDoubleClick = () => {
+    if (!isContent) return;
+    onSetPan({ x: 0, y: 0 });
+    onSetZoom((z) => (z > 1 ? 1 : 2));
+  };
+
+  const handlePointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!zoomed) return;
+    setDragging(true);
+    panStart.current = { px: e.clientX, py: e.clientY, baseX: pan.x, baseY: pan.y };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+  const handlePointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    const start = panStart.current;
+    if (!start) return;
+    const rect = zoomRef.current?.getBoundingClientRect();
+    // Clamp the pan so the scaled page can't be dragged completely off-screen.
+    const maxX = rect ? (rect.width * (zoom - 1)) / 2 : Infinity;
+    const maxY = rect ? (rect.height * (zoom - 1)) / 2 : Infinity;
+    const nx = start.baseX + (e.clientX - start.px);
+    const ny = start.baseY + (e.clientY - start.py);
+    onSetPan({
+      x: Math.min(maxX, Math.max(-maxX, nx)),
+      y: Math.min(maxY, Math.max(-maxY, ny)),
+    });
+  };
+  const handlePointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    panStart.current = null;
+    setDragging(false);
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {}
+  };
 
   // Directional page-turn: in LTR, NEXT slides the incoming page in from the
   // right; in RTL the slide inverts so NEXT comes in from the left. Reduced
@@ -1992,10 +2178,25 @@ function PagedReader({
         />
       </div>
       <div
+        ref={zoomRef}
+        onDoubleClick={handleDoubleClick}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
         className={cn(
           "flex w-full justify-center gap-1",
           fit === "fit-width" ? "items-start" : "items-center",
+          zoomed && (dragging ? "cursor-grabbing" : "cursor-grab"),
         )}
+        style={{
+          transform: zoomed
+            ? `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`
+            : undefined,
+          transformOrigin: "center center",
+          transition: reduceMotion || dragging ? "none" : "transform 0.18s ease-out",
+          touchAction: zoomed ? "none" : undefined,
+        }}
       >
         {renderPages.map((pageNumber) => (
           <div
@@ -2047,8 +2248,9 @@ function PagedReader({
         </AnimatePresence>
       </div>
 
-      {/* Click zones. Left/right map to reading order per direction. */}
-      {isContent && (
+      {/* Click zones. Left/right map to reading order per direction. Removed
+          while zoomed so drags reach the page instead of turning it. */}
+      {isContent && !zoomed && (
         <>
           <button
             type="button"
@@ -2078,6 +2280,23 @@ function PagedReader({
             )}
           />
         </>
+      )}
+
+      {/* Zoom indicator + reset. Fixed and independent of zen/idle-fade so it
+          never disappears while a page is zoomed. */}
+      {isContent && zoomed && (
+        <button
+          type="button"
+          onClick={() => {
+            onSetPan({ x: 0, y: 0 });
+            onSetZoom(1);
+          }}
+          aria-label={`Zoom ${Math.round(zoom * 100)} percent. Reset zoom`}
+          className="fixed left-1/2 top-16 z-50 flex min-h-11 -translate-x-1/2 items-center gap-2 rounded-full border border-reader-line bg-reader-chrome px-3.5 text-sm font-semibold text-reader-foreground shadow-2xl backdrop-blur transition hover:bg-reader-control-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-reader-focus"
+        >
+          <span className="tabular-nums">{Math.round(zoom * 100)}%</span>
+          <span className="text-xs font-medium text-reader-muted">Reset</span>
+        </button>
       )}
 
       {/* Footer controls */}
@@ -2175,6 +2394,7 @@ function ReaderSettingsPanel({
   onToggleSpreadOffset,
   onChangeFit,
   onChangeImageQuality,
+  onOpenShortcuts,
   onClose,
 }: {
   panelRef: RefObject<HTMLDivElement | null>;
@@ -2190,6 +2410,7 @@ function ReaderSettingsPanel({
   onToggleSpreadOffset: () => void;
   onChangeFit: (value: FitMode) => void;
   onChangeImageQuality: (value: ImageQuality) => void;
+  onOpenShortcuts: () => void;
   onClose: () => void;
 }) {
   // Direction and spread only affect paged mode; disable (with a hint) in
@@ -2319,6 +2540,197 @@ function ReaderSettingsPanel({
           />
         </section>
       </div>
+
+      {/* Footer: keyboard-shortcuts discovery for readers without a keyboard. */}
+      <div className="mt-4 border-t border-reader-line pt-3">
+        <button
+          type="button"
+          onClick={onOpenShortcuts}
+          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg text-xs font-medium text-reader-muted transition hover:bg-reader-control-hover hover:text-reader-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-reader-focus"
+        >
+          <Keyboard className="h-4 w-4" aria-hidden="true" />
+          Keyboard shortcuts
+        </button>
+      </div>
     </div>
+  );
+}
+
+// --- Keyboard-shortcuts overlay ----------------------------------------------
+// Follows the command-palette dialog conventions: role="dialog", aria-modal,
+// focus trap, Esc to close, scroll lock. Focus restore is handled by the caller
+// (closeShortcuts). The listed keys are direction-aware for paged RTL.
+function ReaderShortcutsOverlay({
+  mode,
+  direction,
+  onClose,
+}: {
+  mode: Mode;
+  direction: Direction;
+  onClose: () => void;
+}) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const reduceMotion = useReducedMotion();
+  const rtl = direction === "rtl";
+
+  // Scroll lock while open.
+  useEffect(() => {
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previous;
+    };
+  }, []);
+
+  // Focus the first focusable element (the close button) on open.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      dialogRef.current
+        ?.querySelector<HTMLElement>(
+          'button, [href], [tabindex]:not([tabindex="-1"])',
+        )
+        ?.focus();
+    }, 20);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      event.stopPropagation();
+      onClose();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const focusable = Array.from(
+      dialogRef.current?.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ) ?? [],
+    ).filter((element) => element.offsetParent !== null);
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (!first || !last) return;
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
+  const pagedGroup: ShortcutRow[] = [
+    { keys: [rtl ? "←" : "→"], label: "Next page" },
+    { keys: [rtl ? "→" : "←"], label: "Previous page" },
+    { keys: ["+", "="], label: "Zoom in" },
+    { keys: ["−", "_"], label: "Zoom out" },
+    { keys: ["0"], label: "Reset zoom" },
+  ];
+  const verticalGroup: ShortcutRow[] = [
+    { keys: ["↓", "PageDown", "J"], label: "Scroll down" },
+    { keys: ["↑", "PageUp", "K"], label: "Scroll up" },
+    { keys: ["Home"], label: "Jump to top" },
+    { keys: ["End"], label: "Jump to bottom" },
+  ];
+  const generalGroup: ShortcutRow[] = [
+    { keys: ["Z"], label: "Immersive mode" },
+    { keys: ["?"], label: "This shortcuts list" },
+    { keys: ["Esc"], label: "Close dialogs" },
+  ];
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-start justify-center px-4 pt-[10vh] sm:pt-[15vh]"
+      onClick={onClose}
+    >
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-[2px]" />
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Keyboard shortcuts"
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={onKeyDown}
+        className={cn(
+          "relative w-full max-w-md overflow-hidden rounded-2xl border border-reader-line bg-reader-chrome p-5 text-reader-foreground shadow-2xl backdrop-blur",
+          !reduceMotion && "yomi-rise",
+        )}
+      >
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="font-display text-lg font-bold">Keyboard shortcuts</h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close keyboard shortcuts"
+            className="grid h-11 w-11 place-items-center rounded-lg text-reader-muted transition hover:bg-reader-control-hover hover:text-reader-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-reader-focus"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+
+        <div className="space-y-5">
+          <ShortcutSection
+            title={
+              mode === "paged" ? "Paged mode (current)" : "Paged mode"
+            }
+            rows={pagedGroup}
+          />
+          {mode === "paged" && rtl && (
+            <p className="-mt-3 text-xs text-reader-muted">
+              You&rsquo;re reading right-to-left, so ← turns to the next page.
+            </p>
+          )}
+          <ShortcutSection
+            title={
+              mode === "vertical" ? "Vertical mode (current)" : "Vertical mode"
+            }
+            rows={verticalGroup}
+          />
+          <ShortcutSection title="Anywhere" rows={generalGroup} />
+          <p className="text-xs text-reader-muted">
+            Zoom (+, −, 0, double-click, ⌘/Ctrl + scroll, drag to pan) works in
+            paged mode only — vertical mode uses the Fit settings instead.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+interface ShortcutRow {
+  keys: string[];
+  label: string;
+}
+
+function ShortcutSection({
+  title,
+  rows,
+}: {
+  title: string;
+  rows: ShortcutRow[];
+}) {
+  return (
+    <section>
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-reader-muted">
+        {title}
+      </p>
+      <ul className="space-y-1.5">
+        {rows.map((row) => (
+          <li key={row.label} className="flex items-center justify-between gap-4">
+            <span className="text-sm">{row.label}</span>
+            <span className="flex flex-wrap items-center justify-end gap-1">
+              {row.keys.map((key) => (
+                <kbd
+                  key={key}
+                  className="inline-flex min-h-6 min-w-6 items-center justify-center rounded border border-reader-line bg-reader-canvas px-1.5 font-mono text-[11px] font-medium text-reader-foreground"
+                >
+                  {key}
+                </kbd>
+              ))}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

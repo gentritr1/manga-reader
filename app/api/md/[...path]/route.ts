@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { MD_API } from "@/lib/mangadex";
+import { MD_API, PUBLIC_CONTENT_RATINGS } from "@/lib/mangadex";
+import { isSupportedReadingLanguage } from "@/lib/reading-language";
 import {
   MANGADEX_API_CACHE,
   NO_STORE,
@@ -9,7 +10,7 @@ import {
 const UA = "MangaReader/1.0 (https://github.com/manga-reader; contact@example.com)";
 const MAX_PROXY_LIMIT = 100;
 const ALLOWED_INCLUDES = ["cover_art", "author"];
-const PUBLIC_CONTENT_RATINGS = ["safe", "suggestive"];
+const PUBLIC_RATINGS: string[] = [...PUBLIC_CONTENT_RATINGS];
 const ALLOWED_QUERY_KEYS = new Set([
   "title",
   "limit",
@@ -82,8 +83,30 @@ function mangaProxyTarget(path: string[], req: NextRequest): string | null {
   searchParams.set("limit", String(canonicalLimit));
   searchParams.set("offset", String(Math.max(parsedOffset, 0)));
   replaceAll(searchParams, "includes[]", ALLOWED_INCLUDES);
-  replaceAll(searchParams, "contentRating[]", PUBLIC_CONTENT_RATINGS);
-  replaceAll(searchParams, "availableTranslatedLanguage[]", ["en"]);
+
+  // Content rating: honour a caller-supplied subset but clamp to the public set
+  // (Safe/Suggestive). Erotica/pornographic are never forwarded — deliberately
+  // out of brand scope. Empty/invalid → the full public default.
+  const requestedRatings = req.nextUrl.searchParams
+    .getAll("contentRating[]")
+    .filter((cr) => PUBLIC_RATINGS.includes(cr));
+  replaceAll(
+    searchParams,
+    "contentRating[]",
+    requestedRatings.length > 0 ? requestedRatings : PUBLIC_RATINGS,
+  );
+
+  // Reading language: honour a single caller-supplied language when it is one of
+  // the curated MangaDex codes, else fall back to English (today's behavior).
+  const requestedLanguage = req.nextUrl.searchParams.get(
+    "availableTranslatedLanguage[]",
+  );
+  replaceAll(searchParams, "availableTranslatedLanguage[]", [
+    isSupportedReadingLanguage(requestedLanguage)
+      ? (requestedLanguage as string)
+      : "en",
+  ]);
+
   searchParams.set("hasAvailableChapters", "true");
   searchParams.sort();
 

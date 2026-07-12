@@ -19,11 +19,19 @@ import {
   searchMangaClient,
 } from "@/lib/mangadex-client";
 import {
+  PUBLIC_CONTENT_RATINGS,
   TAG_GROUPS,
   type MangaStatus,
   type SimpleManga,
   type SortOption,
 } from "@/lib/mangadex";
+import {
+  READING_LANGUAGES,
+  DEFAULT_READING_LANGUAGE,
+  normalizeReadingLanguage,
+  readReadingLanguage,
+  writeReadingLanguage,
+} from "@/lib/reading-language";
 import { MangaCard } from "@/components/manga/manga-card";
 import { MangaGridSkeleton } from "@/components/manga/manga-grid";
 import { InternalAdPreview } from "@/components/ads/internal-ad-preview";
@@ -58,6 +66,29 @@ const STATUSES: { value: MangaStatus | ""; label: string }[] = [
   { value: "cancelled", label: "Cancelled" },
 ];
 
+// Language options for the curated reading-language <Select>.
+const LANGUAGE_OPTIONS = READING_LANGUAGES.map((l) => ({
+  value: l.code,
+  label: l.label,
+}));
+
+// Content-rating chips. Safe + Suggestive only — erotica/pornographic are
+// intentionally omitted (out of brand scope; the proxy also drops them).
+const RATING_CHIPS: { value: (typeof PUBLIC_CONTENT_RATINGS)[number]; label: string }[] = [
+  { value: "safe", label: "Safe" },
+  { value: "suggestive", label: "Suggestive" },
+];
+const DEFAULT_RATINGS: string[] = [...PUBLIC_CONTENT_RATINGS];
+
+// Parse the ?rating= URL param into a valid, non-empty subset of the public set.
+function parseRatingParam(raw: string | null): string[] {
+  if (!raw) return DEFAULT_RATINGS;
+  const parsed = raw
+    .split(",")
+    .filter((r) => (DEFAULT_RATINGS as string[]).includes(r));
+  return parsed.length > 0 ? parsed : DEFAULT_RATINGS;
+}
+
 function shouldShowInternalPreview(index: number) {
   return index === 12;
 }
@@ -87,8 +118,32 @@ export function BrowseClient() {
     (params.get("status") as MangaStatus) || "",
   );
   const [genres, setGenres] = useState<string[]>([]);
+  // Content rating persists in the URL (shareable, like the other filters).
+  const [rating, setRating] = useState<string[]>(() =>
+    parseRatingParam(params.get("rating")),
+  );
+  // Reading language is a GLOBAL preference (localStorage + cookie), not a URL
+  // filter. Start at English for SSR/hydration parity, then reconcile from
+  // localStorage after mount (mirrors the reader-prefs pattern) so there is no
+  // hydration flash and no cookie is required for the English default.
+  const [language, setLanguage] = useState<string>(DEFAULT_READING_LANGUAGE);
   const [showFilters, setShowFilters] = useState(false);
   const reduceMotion = useReducedMotion();
+
+  useEffect(() => {
+    // Client-only reconciliation from localStorage — a post-mount effect avoids
+    // a hydration mismatch, so this setState is intentional.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setLanguage(readReadingLanguage());
+  }, []);
+
+  const changeLanguage = useCallback((code: string) => {
+    const next = normalizeReadingLanguage(code);
+    setLanguage(next);
+    // Persist to localStorage (drives this picker) AND a cookie (so server
+    // components — manga detail + reader neighbor feeds — read the same value).
+    writeReadingLanguage(next);
+  }, []);
 
   const debouncedTitle = useDebounced(title);
   const browseStaleTime =
@@ -102,12 +157,14 @@ export function BrowseClient() {
     if (debouncedTitle) sp.set("q", debouncedTitle);
     if (sort !== "relevance") sp.set("sort", sort);
     if (status) sp.set("status", status);
+    // Only serialize rating when it differs from the Safe+Suggestive default.
+    if (rating.length !== DEFAULT_RATINGS.length) sp.set("rating", rating.join(","));
     const qs = sp.toString();
     router.replace(qs ? `/browse?${qs}` : "/browse", { scroll: false });
-  }, [debouncedTitle, sort, status, router]);
+  }, [debouncedTitle, sort, status, rating, router]);
 
   const query = useInfiniteQuery({
-    queryKey: ["browse", debouncedTitle, sort, status, genres],
+    queryKey: ["browse", debouncedTitle, sort, status, genres, language, rating],
     initialPageParam: 0,
     queryFn: ({ pageParam, signal }) =>
       searchMangaClient({
@@ -115,6 +172,8 @@ export function BrowseClient() {
         sort,
         status: status || undefined,
         genres,
+        translatedLanguage: language,
+        contentRating: rating,
         limit: PAGE_SIZE,
         offset: pageParam,
       }, signal),
@@ -186,6 +245,16 @@ export function BrowseClient() {
 
   const toggleGenre = (id: string) =>
     setGenres((g) => (g.includes(id) ? g.filter((x) => x !== id) : [...g, id]));
+
+  // Toggle a rating chip. Deselecting the last active rating snaps back to Safe
+  // so the query is never sent with an empty contentRating set.
+  const toggleRating = (value: string) =>
+    setRating((current) => {
+      const next = current.includes(value)
+        ? current.filter((r) => r !== value)
+        : [...current, value];
+      return next.length > 0 ? next : ["safe"];
+    });
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-8">
@@ -259,6 +328,61 @@ export function BrowseClient() {
                     label="Status"
                     className="w-44"
                   />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-content-secondary">
+                    Language
+                  </span>
+                  <Select
+                    value={language}
+                    options={LANGUAGE_OPTIONS}
+                    onChange={changeLanguage}
+                    label="Reading language"
+                    className="w-52"
+                  />
+                </div>
+              </div>
+
+              {/* Content rating. Safe + Suggestive only; erotica/pornographic are
+                  deliberately omitted as out of brand scope. Deselecting both
+                  re-selects Safe (never an empty rating query). */}
+              <div className="space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-content-secondary">
+                  Content rating
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {RATING_CHIPS.map((chip) => {
+                    const selected = rating.includes(chip.value);
+                    return (
+                      <button
+                        type="button"
+                        key={chip.value}
+                        onClick={() => toggleRating(chip.value)}
+                        aria-pressed={selected}
+                        className={cn(
+                          "inline-flex min-h-11 items-center gap-1.5 rounded-full border px-4 text-sm font-medium transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus active:scale-95",
+                          selected
+                            ? "border-transparent bg-brand-primary text-brand-primary-foreground shadow-sm shadow-brand-primary/25"
+                            : "border-line-subtle text-content-secondary hover:border-line-strong hover:bg-surface-muted/60 hover:text-content-primary",
+                        )}
+                      >
+                        <AnimatePresence initial={false}>
+                          {selected && (
+                            <motion.span
+                              initial={reduceMotion ? false : { width: 0, opacity: 0 }}
+                              animate={{ width: "auto", opacity: 1 }}
+                              exit={reduceMotion ? { opacity: 0 } : { width: 0, opacity: 0 }}
+                              transition={{ duration: 0.15 }}
+                              className="grid place-items-center overflow-hidden"
+                            >
+                              <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                            </motion.span>
+                          )}
+                        </AnimatePresence>
+                        {chip.label}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 

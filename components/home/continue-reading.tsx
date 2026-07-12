@@ -165,6 +165,8 @@ export function ContinueReading({
     <Section
       title="Continue reading"
       description="Your last opened chapters stay ready here."
+      href="/history"
+      actionLabel="View history"
     >
       <div className="relative">
         <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar">

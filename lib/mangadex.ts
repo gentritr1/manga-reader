@@ -295,7 +295,24 @@ export interface SearchParams {
   sort?: SortOption;
   limit?: number;
   offset?: number;
+  /**
+   * MangaDex translatedLanguage code the results must have chapters in. Defaults
+   * to "en" so existing callers (home rails, etc.) are unchanged. The browse
+   * language picker passes the reader's global preference here.
+   */
+  translatedLanguage?: string;
+  /**
+   * Content-rating filter. Defaults to the public Safe + Suggestive set. Callers
+   * may narrow it (e.g. Safe only) but never widen it — erotica/pornographic are
+   * intentionally out of brand scope and are dropped by both this builder and
+   * the /api/md proxy. (Deliberate omission — see PRODUCT/brand scope.)
+   */
+  contentRating?: string[];
 }
+
+// Ratings the app ever queries. Erotica/pornographic are intentionally excluded
+// (out of brand scope) — see the browse rating chips and the /api/md proxy.
+export const PUBLIC_CONTENT_RATINGS = ["safe", "suggestive"] as const;
 
 /** Build the query string for a /manga search (used by both server and client). */
 export function buildMangaQuery(params: SearchParams): string {
@@ -310,8 +327,18 @@ export function buildMangaQuery(params: SearchParams): string {
   q.set("offset", String(offset));
   q.append("includes[]", "cover_art");
   q.append("includes[]", "author");
-  for (const cr of ["safe", "suggestive"]) q.append("contentRating[]", cr);
-  q.append("availableTranslatedLanguage[]", "en");
+  // Clamp any caller-supplied ratings to the public set (never erotica/porn),
+  // defaulting to Safe + Suggestive when none/only-invalid are given.
+  const ratings = (params.contentRating ?? PUBLIC_CONTENT_RATINGS).filter(
+    (cr): cr is (typeof PUBLIC_CONTENT_RATINGS)[number] =>
+      (PUBLIC_CONTENT_RATINGS as readonly string[]).includes(cr),
+  );
+  for (const cr of ratings.length > 0 ? ratings : PUBLIC_CONTENT_RATINGS)
+    q.append("contentRating[]", cr);
+  q.append(
+    "availableTranslatedLanguage[]",
+    params.translatedLanguage || "en",
+  );
   q.set("hasAvailableChapters", "true"); // drop titles with no chapters at all
 
   if (params.title) q.set("title", params.title);

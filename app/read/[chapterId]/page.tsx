@@ -1,3 +1,4 @@
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import {
   getChapterInfo,
@@ -6,6 +7,10 @@ import {
   getManga,
 } from "@/lib/mangadex-server";
 import { chapterPageProxyUrl, coverUrl, sortChaptersByNumber } from "@/lib/mangadex";
+import {
+  READING_LANGUAGE_COOKIE,
+  normalizeReadingLanguage,
+} from "@/lib/reading-language";
 import { Reader } from "@/components/reader/reader";
 import { ExternalChapterNotice } from "@/components/reader/external-notice";
 import { auth } from "@/lib/auth";
@@ -27,6 +32,12 @@ export default async function ReadPage({
 
   if (!info) notFound();
   const mangaId = info.mangaId;
+  // Reader's global language preference (yomi-language cookie). Absent → "en".
+  // Neighbor prev/next are resolved from a feed in this language; if the current
+  // chapter isn't part of it, neighbors simply resolve to null (safe fallback).
+  const language = normalizeReadingLanguage(
+    (await cookies()).get(READING_LANGUAGE_COOKIE)?.value,
+  );
 
   // External / licensed chapters have no in-app pages, so skip the pages fetch.
   const needPages = !(info.externalUrl || info.pages === 0);
@@ -39,6 +50,7 @@ export default async function ReadPage({
           order: "asc",
           limit: 500,
           includeScanlationGroup: false,
+          translatedLanguage: language,
         })
       : Promise.resolve({ chapters: [], total: 0 }),
     needPages ? getChapterPages(chapterId) : Promise.resolve(null),

@@ -1,8 +1,13 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { BookOpen } from "lucide-react";
 import { getChapters, getManga } from "@/lib/mangadex-server";
+import {
+  READING_LANGUAGE_COOKIE,
+  normalizeReadingLanguage,
+} from "@/lib/reading-language";
 import {
   coverUrl,
   isReadable,
@@ -67,12 +72,17 @@ export default async function MangaDetailPage({
 }) {
   const { id } = await params;
   const session = await auth();
+  // Reader's global language preference (yomi-language cookie written by the
+  // browse picker). Absent → "en", so existing users see today's behavior.
+  const language = normalizeReadingLanguage(
+    (await cookies()).get(READING_LANGUAGE_COOKIE)?.value,
+  );
 
   const [manga, feed, shelves, readingAnalytics] = await Promise.all([
     getManga(id),
     // Fetch ascending so the earliest chapters are always in the window; a
     // desc + limit window drops chapter 1 for long series, breaking the picker.
-    getChapters(id, { limit: 500, order: "asc" }),
+    getChapters(id, { limit: 500, order: "asc", translatedLanguage: language }),
     session?.user?.id
       ? prisma.shelf.findMany({
           where: { userId: session.user.id },
