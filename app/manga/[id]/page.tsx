@@ -121,6 +121,10 @@ export default async function MangaDetailPage({
               src={cover}
               alt=""
               fill
+              // Blurred, 20%-opacity decoration — request a small variant instead
+              // of letting `fill` default to sizes="100vw" (which fetches up to a
+              // ~1536-1920px image for a layer no one reads).
+              sizes="256px"
               className="object-cover opacity-20 blur-2xl"
             />
           )}

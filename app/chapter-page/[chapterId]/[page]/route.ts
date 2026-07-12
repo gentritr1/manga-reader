@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse, after } from "next/server";
-import { CHAPTER_IMAGE_CACHE, NO_STORE, setSharedCacheHeaders } from "@/lib/cache-headers";
+import { CHAPTER_IMAGE_IMMUTABLE_CACHE, NO_STORE, setSharedCacheHeaders } from "@/lib/cache-headers";
 import { pageImageUrl } from "@/lib/mangadex";
 import { getChapterPages } from "@/lib/mangadex-server";
 
@@ -125,7 +125,7 @@ export async function GET(
       if (range) {
         headers.set("Cache-Control", NO_STORE);
       } else {
-        setSharedCacheHeaders(headers, CHAPTER_IMAGE_CACHE);
+        setSharedCacheHeaders(headers, CHAPTER_IMAGE_IMMUTABLE_CACHE);
       }
       for (const name of ["etag", "last-modified"]) {
         const value = upstream.headers.get(name);
@@ -150,7 +150,7 @@ export async function GET(
     if (range || upstream.status === 206) {
       headers.set("Cache-Control", NO_STORE);
     } else {
-      setSharedCacheHeaders(headers, CHAPTER_IMAGE_CACHE);
+      setSharedCacheHeaders(headers, CHAPTER_IMAGE_IMMUTABLE_CACHE);
     }
 
     for (const name of [

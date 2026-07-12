@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -30,6 +31,13 @@ import {
   DEFAULT_SERIES_TINT,
   readCachedSeriesTint,
 } from "@/lib/extract-tint";
+import {
+  DEFAULT_IMAGE_QUALITY,
+  readImageQuality,
+  resolveDataSaver,
+  writeImageQuality,
+  type ImageQuality,
+} from "@/lib/image-quality";
 import { chapterPageProxyUrl } from "@/lib/mangadex";
 import { formatReadTimeEstimate } from "@/lib/read-time";
 import { useFavorites } from "@/lib/use-favorites";
@@ -259,7 +267,6 @@ interface StoredProgressMetadata {
 interface Props {
   chapterId: string;
   imageUrls: string[];
-  useDataSaver: boolean;
   chapterLabel: string;
   chapterTitle: string | null;
   mangaId: string | null;
@@ -425,7 +432,7 @@ export function Reader(props: Props) {
 }
 
 function ReaderContent(props: Props) {
-  const { imageUrls, prevId, nextId, mangaId, useDataSaver } = props;
+  const { imageUrls, prevId, nextId, mangaId } = props;
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("vertical");
   // PR-4 reader preferences (paged direction/spread + fit), persisted per title.
@@ -453,6 +460,46 @@ function ReaderContent(props: Props) {
   const [slideDirection, setSlideDirection] = useState<1 | -1>(1);
   const total = imageUrls.length;
   const lastSlide = total + 1;
+
+  // Global image-quality setting (see lib/image-quality). `imageQuality` drives
+  // the settings UI; `resolvedSaver` is the concrete data-saver boolean the page
+  // URLs are built from. Both start at their SSR-safe defaults (original quality
+  // → `resolvedSaver` false → the exact server-rendered `imageUrls`) and are
+  // reconciled from localStorage + navigator.connection after mount, so a fast
+  // connection never double-fetches page 1 at a different quality.
+  const [imageQuality, setImageQuality] =
+    useState<ImageQuality>(DEFAULT_IMAGE_QUALITY);
+  const [resolvedSaver, setResolvedSaver] = useState(false);
+  useEffect(() => {
+    const quality = readImageQuality();
+    // Client-only reconciliation from localStorage + navigator.connection; a
+    // post-mount effect is the intended way to avoid a hydration mismatch, so
+    // these synchronous setStates are deliberate.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setImageQuality(quality);
+    setResolvedSaver(resolveDataSaver(quality));
+  }, []);
+  const changeImageQuality = useCallback((quality: ImageQuality) => {
+    setImageQuality(quality);
+    setResolvedSaver(resolveDataSaver(quality));
+    // Persist only on an explicit user change so a reader who never opens the
+    // panel leaves no localStorage key behind.
+    writeImageQuality(quality);
+  }, []);
+  // Page URLs the reader actually renders/preloads. When original quality is in
+  // effect this is the untouched server array (same references → no remount, no
+  // extra fetch); when data-saver resolves true it rebuilds the distinct
+  // ?quality=data-saver proxy URLs, re-pointing srcs without touching scroll or
+  // slide state so the reading position is preserved.
+  const pageUrls = useMemo(
+    () =>
+      resolvedSaver
+        ? Array.from({ length: total }, (_, i) =>
+            chapterPageProxyUrl(props.chapterId, i + 1, true),
+          )
+        : imageUrls,
+    [resolvedSaver, total, props.chapterId, imageUrls],
+  );
 
   // Vertical reading progress: which page is in view and how far scrolled.
   const [currentPage, setCurrentPage] = useState(1);
@@ -833,11 +880,11 @@ function ReaderContent(props: Props) {
       if (pageNumber === 1) {
         img.onload = () => setNextTeaseReady(true);
       }
-      // Proxy URL (matching the rendered pages' quality) so the preload warms
-      // the same same-origin cache the next chapter will read from.
-      img.src = chapterPageProxyUrl(nextId, pageNumber, useDataSaver);
+      // Proxy URL (matching the rendered pages' resolved quality) so the preload
+      // warms the same same-origin cache the next chapter will read from.
+      img.src = chapterPageProxyUrl(nextId, pageNumber, resolvedSaver);
     });
-  }, [shouldPreloadNext, nextId, useDataSaver]);
+  }, [shouldPreloadNext, nextId, resolvedSaver]);
 
   // Restore reader preferences. Fallback chain: per-title prefs → global
   // reader-mode key (legacy default) → hardcoded defaults. A NEW manga (no
@@ -1153,20 +1200,22 @@ function ReaderContent(props: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [mode, toggleZenMode]);
 
-  // Preload neighbour image in paged mode.
+  // Preload neighbour images in paged mode. Warm the next ~3 logical pages so a
+  // page turn rarely waits on the network; double spread advances two pages per
+  // view, so reach one page further to cover the next two views. Bounded on
+  // purpose — no full-chapter eager fetch (the proxy is a bandwidth choke
+  // point). Uses `pageUrls` so preloads match the rendered pages' quality.
   useEffect(() => {
     if (mode !== "paged" || !allowsSpeculativeImagePreload()) return;
-    // Warm the next logical page(s). Double spread advances two at a time, so
-    // preload two ahead; logical order is unchanged.
-    const ahead = doubleSpread ? [1, 2, 3] : [1];
+    const ahead = doubleSpread ? [1, 2, 3, 4] : [1, 2, 3];
     ahead.forEach((delta) => {
       const nextPage = slide + delta;
       if (nextPage >= 1 && nextPage <= total) {
         const img = new Image();
-        img.src = imageUrls[nextPage - 1];
+        img.src = pageUrls[nextPage - 1];
       }
     });
-  }, [slide, mode, imageUrls, total, doubleSpread]);
+  }, [slide, mode, pageUrls, total, doubleSpread]);
 
   const backHref = mangaId ? `/manga/${mangaId}` : "/";
   const readerStyle = { "--series-tint": DEFAULT_SERIES_TINT } as CSSProperties;
@@ -1272,11 +1321,13 @@ function ReaderContent(props: Props) {
                 spread={spread}
                 spreadOffset={spreadOffset}
                 effectiveFit={effectiveFit}
+                imageQuality={imageQuality}
                 isWideViewport={isWideViewport}
                 onChangeDirection={changeDirection}
                 onChangeSpread={changeSpread}
                 onToggleSpreadOffset={toggleSpreadOffset}
                 onChangeFit={changeFit}
+                onChangeImageQuality={changeImageQuality}
                 onClose={() => closeSettings(true)}
               />
             )}
@@ -1300,6 +1351,7 @@ function ReaderContent(props: Props) {
       {mode === "vertical" ? (
         <VerticalReader
           {...props}
+          imageUrls={pageUrls}
           fit={effectiveFit}
           toggleZenMode={toggleZenMode}
           onPageVisible={markVerticalPageVisible}
@@ -1312,6 +1364,7 @@ function ReaderContent(props: Props) {
       ) : (
         <PagedReader
           {...props}
+          imageUrls={pageUrls}
           slide={slide}
           total={total}
           lastSlide={lastSlide}
@@ -1644,6 +1697,32 @@ function ReaderPageImage({
     observer.observe(element);
     return () => observer.disconnect();
   }, [onVisible, pageNumber]);
+
+  // Vertical prefetch: warm this page's bytes ~1.5 viewports before it scrolls
+  // in so reading rarely stalls on a fetch. Deliberately a SEPARATE observer
+  // from the progress one above — its generous rootMargin must never mark a page
+  // "seen" early. Skipped for eager pages (already loading) and on save-data /
+  // slow connections. The warm request shares the browser cache with the real
+  // <img loading="lazy">, so no duplicate network fetch when it enters view.
+  useEffect(() => {
+    if (eager) return;
+    const element = pageRef.current;
+    if (!element || typeof IntersectionObserver === "undefined") return;
+    if (!allowsSpeculativeImagePreload()) return;
+    let warmed = false;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (warmed || !entries.some((entry) => entry.isIntersecting)) return;
+        warmed = true;
+        const img = new Image();
+        img.src = src;
+        observer.disconnect();
+      },
+      { rootMargin: "150% 0px" },
+    );
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [eager, src]);
 
   const retryNow = () => {
     if (!canRetry) return;
@@ -2035,11 +2114,13 @@ function ReaderSettingsPanel({
   spread,
   spreadOffset,
   effectiveFit,
+  imageQuality,
   isWideViewport,
   onChangeDirection,
   onChangeSpread,
   onToggleSpreadOffset,
   onChangeFit,
+  onChangeImageQuality,
   onClose,
 }: {
   panelRef: RefObject<HTMLDivElement | null>;
@@ -2048,11 +2129,13 @@ function ReaderSettingsPanel({
   spread: Spread;
   spreadOffset: boolean;
   effectiveFit: FitMode;
+  imageQuality: ImageQuality;
   isWideViewport: boolean;
   onChangeDirection: (value: Direction) => void;
   onChangeSpread: (value: Spread) => void;
   onToggleSpreadOffset: () => void;
   onChangeFit: (value: FitMode) => void;
+  onChangeImageQuality: (value: ImageQuality) => void;
   onClose: () => void;
 }) {
   // Direction and spread only affect paged mode; disable (with a hint) in
@@ -2154,6 +2237,30 @@ function ReaderSettingsPanel({
               { value: "fit-width", label: "Width", ariaLabel: "Fit width" },
               { value: "fit-height", label: "Height", ariaLabel: "Fit height" },
               { value: "original", label: "Original", ariaLabel: "Original size" },
+            ]}
+          />
+        </section>
+
+        <section>
+          <p className="mb-1.5 text-xs font-medium text-reader-muted">
+            Image quality
+          </p>
+          <SegmentedRadioGroup<ImageQuality>
+            label="Image quality"
+            value={imageQuality}
+            onChange={onChangeImageQuality}
+            options={[
+              { value: "auto", label: "Auto" },
+              {
+                value: "saver",
+                label: "Data saver",
+                ariaLabel: "Data saver quality",
+              },
+              {
+                value: "original",
+                label: "Original",
+                ariaLabel: "Original quality",
+              },
             ]}
           />
         </section>

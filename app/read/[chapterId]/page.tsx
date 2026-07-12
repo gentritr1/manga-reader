@@ -90,11 +90,13 @@ export default async function ReadPage({
     }
   }
 
-  const useDataSaver = false;
   // Render through the same-origin proxy; the direct at-home URL errors in the
-  // browser. The proxy fetches upstream server-side and streams the bytes.
+  // browser. The proxy fetches upstream server-side and streams the bytes. These
+  // are the original-quality URLs used for SSR/hydration; the client reader
+  // re-points them to the data-saver variant after mount when the resolved
+  // image-quality setting calls for it (see components/reader/reader.tsx).
   const imageUrls = pages.data.map((_, i) =>
-    chapterPageProxyUrl(chapterId, i + 1, useDataSaver),
+    chapterPageProxyUrl(chapterId, i + 1, false),
   );
 
   return (
@@ -102,7 +104,6 @@ export default async function ReadPage({
       key={chapterId}
       chapterId={chapterId}
       imageUrls={imageUrls}
-      useDataSaver={useDataSaver}
       chapterLabel={chapterLabel}
       chapterTitle={info.title ?? null}
       mangaId={mangaId}
