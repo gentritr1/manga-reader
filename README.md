@@ -104,18 +104,24 @@ Postgres-compatible server (`prisma dev`, PGlite-based, no Docker):
    across restarts).
 2. Put that string in **both** `.env` (Prisma CLI) and `.env.local` (Next.js)
    as `DATABASE_URL` and `DIRECT_URL`.
-3. Create the tables: `npx prisma db push`. (`migrate deploy` does not work
-   from scratch — the migrations folder has no baseline init migration; see
-   note below.)
+3. Create the tables: `npx prisma migrate deploy` (the migrations folder has
+   a full baseline; `db push` also works but skips migration bookkeeping).
 4. `npm run dev` as usual. Sign-up, favorites, shelves, and history sync now
    work fully offline.
 
-> **Known gap:** `prisma/migrations/` contains only an incremental migration
-> and no baseline, so `prisma migrate deploy` cannot build a fresh database.
-> Production was bootstrapped with `db push`. Before the next schema change,
-> consider generating a baseline migration (`prisma migrate diff --from-empty
-> --to-schema-datamodel prisma/schema.prisma --script`) and marking it applied
-> in existing environments.
+> **Migration baseline:** `prisma/migrations/0_init` is a baseline that,
+> together with the later incremental migrations, rebuilds the exact current
+> schema from empty (verified via `prisma migrate diff --from-migrations`,
+> "No difference detected"). Databases that predate the baseline (e.g. the
+> production Neon DB, which was bootstrapped with `db push`) must record the
+> migrations as already applied **once**, using the direct (unpooled) URL:
+>
+> ```bash
+> npx prisma migrate resolve --applied 0_init
+> npx prisma migrate resolve --applied 20260704120000_add_reading_progress_page
+> ```
+>
+> After that, `prisma migrate deploy` works normally everywhere.
 
 Alternatively, `docker-compose.yml` provides a real Postgres 15 on port 5432
 (`docker compose up -d db`) if you prefer Docker:
