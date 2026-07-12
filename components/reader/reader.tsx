@@ -316,14 +316,23 @@ function getReaderSessionSnapshot(
   return { pagesRead, durationSeconds };
 }
 
-function formatMomentumDuration(seconds: number) {
-  return `${Math.max(1, Math.round(seconds / 60))} min`;
-}
-
-function formatMomentumStats(stats: ReaderSessionSnapshot | null) {
-  if (!stats) return "Chapter complete";
-  const pagesLabel = stats.pagesRead === 1 ? "1 page" : `${stats.pagesRead} pages`;
-  return `${pagesLabel} · ${formatMomentumDuration(stats.durationSeconds)}`;
+// Single end-card meta line: page count from the session (fallback to none) plus
+// the read-time estimate. Collapses the old two-line "N pages · M min" +
+// "~M min estimated read" into one "11 pages · ~1 min" so the estimate is stated
+// exactly once.
+function formatEndMeta(
+  stats: ReaderSessionSnapshot | null,
+  estimatedReadTime: string | null,
+) {
+  const pagesLabel = stats
+    ? stats.pagesRead === 1
+      ? "1 page"
+      : `${stats.pagesRead} pages`
+    : null;
+  const parts = [pagesLabel, estimatedReadTime].filter(
+    (part): part is string => Boolean(part),
+  );
+  return parts.length > 0 ? parts.join(" · ") : "Chapter complete";
 }
 
 function progressStorageKey(chapterId: string) {
@@ -1422,41 +1431,75 @@ function ReaderContent(props: Props) {
   );
 }
 
+// Library CTA for the end card. `emphasis` picks the resting look when NOT yet
+// saved: "primary" is the violet filled action (used when the reader is caught
+// up and following is the natural next step); "secondary" is an outlined reader-
+// chrome button (used when a next-chapter CTA already owns the primary slot).
+// Once saved it swaps to a clearly pressed "In your library" state (aria-pressed
+// + filled heart) and toggling removes. All colours come from reader-* / action-
+// primary tokens so the label stays high-contrast on the dark reader canvas.
 function EndLibraryAction({
   mangaId,
   mangaTitle,
   coverUrl,
+  emphasis,
 }: {
   mangaId: string | null;
   mangaTitle: string;
   coverUrl: string | null;
+  emphasis: "primary" | "secondary";
 }) {
   const router = useRouter();
-  const { isFavorite, isAuthenticated, isLoading, add } = useFavorites();
+  const { isFavorite, isAuthenticated, isLoading, add, remove } = useFavorites();
 
-  if (!mangaId || isFavorite(mangaId) || (isAuthenticated && isLoading)) {
+  // Wait for the favorites list before committing to a label, but only when the
+  // viewer is signed in — anonymous readers can render the add CTA immediately.
+  if (!mangaId || (isAuthenticated && isLoading)) {
     return null;
   }
+
+  const active = isFavorite(mangaId);
+  const busy = add.isPending || remove.isPending;
+  // Unsaved + primary uses the default violet button pair (contrast-correct in
+  // both themes). Every other state is an outlined reader-chrome button; the
+  // outline base ships bg-transparent, so twMerge lets the reader-token override
+  // win without the default variant's violet fill leaking through.
+  const variant = !active && emphasis === "primary" ? "default" : "outline";
+  const stateClass = active
+    ? "border-reader-line bg-reader-control-selected text-reader-foreground hover:bg-reader-control-hover"
+    : emphasis === "primary"
+      ? ""
+      : "border-reader-line text-reader-foreground hover:bg-reader-control-hover";
 
   return (
     <button
       type="button"
-      disabled={add.isPending}
+      disabled={busy}
+      aria-pressed={active}
+      aria-label={
+        active
+          ? `Remove ${mangaTitle} from library`
+          : `Add ${mangaTitle} to library`
+      }
       onClick={() => {
         if (!isAuthenticated) {
           router.push("/login");
           return;
         }
-        add.mutate({ mangaId, title: mangaTitle, coverUrl });
+        if (active) remove.mutate(mangaId);
+        else add.mutate({ mangaId, title: mangaTitle, coverUrl });
       }}
       className={buttonClassName({
-        variant: "library",
+        variant,
         size: "lg",
-        className: "w-full sm:w-auto",
+        className: cn("w-full sm:w-auto", stateClass),
       })}
     >
-      <Heart className="h-5 w-5" aria-hidden="true" />
-      Add to library
+      <Heart
+        className={cn("h-5 w-5", active && "fill-current")}
+        aria-hidden="true"
+      />
+      {active ? "In your library" : "Add to library"}
     </button>
   );
 }
@@ -1507,17 +1550,17 @@ function ChapterEndMomentumCard({
       onViewportEnter={onVisible}
       className="mx-auto w-full max-w-xl overflow-hidden rounded-2xl border border-reader-line bg-reader-chrome p-5 text-center shadow-2xl backdrop-blur sm:p-6"
     >
-      <p className="text-sm font-medium text-reader-muted">
-        {formatMomentumStats(stats)}
+      <p className="text-xs font-medium text-reader-muted">
+        {formatEndMeta(stats, estimatedReadTime)}
       </p>
-      {estimatedReadTime && (
-        <p className="mt-1 text-xs font-medium text-reader-muted">
-          {estimatedReadTime} estimated read
-        </p>
-      )}
-      <h2 className="mt-2 text-lg font-semibold text-reader-foreground">
+      <h2 className="mt-2 font-display text-2xl font-bold text-reader-foreground">
         End of {chapterLabel}
       </h2>
+      {!nextId && (
+        <p className="mt-1.5 text-sm font-medium text-reader-muted">
+          You&rsquo;re all caught up.
+        </p>
+      )}
 
       {todayRhythmDays && (
         <p className="mx-auto mt-3 flex w-fit items-center gap-2 rounded-full border border-library-line bg-library-surface px-3 py-1.5 text-sm font-medium text-reader-foreground">
@@ -1549,26 +1592,35 @@ function ChapterEndMomentumCard({
 
       <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row">
         {nextId ? (
-          <button
-            type="button"
-            onClick={() => router.push(`/read/${nextId}`)}
-            className={buttonClassName({
-              size: "lg",
-              className:
-                "w-full bg-action-primary text-action-primary-foreground hover:brightness-110 sm:w-auto",
-            })}
-          >
-            Next chapter <ChevronRight className="h-5 w-5" aria-hidden="true" />
-          </button>
-        ) : (
           <>
-            <p className="w-full text-sm font-medium text-reader-muted sm:w-auto">
-              You&rsquo;re all caught up.
-            </p>
+            {/* Next chapter keeps the primary slot; library follows as secondary. */}
+            <button
+              type="button"
+              onClick={() => router.push(`/read/${nextId}`)}
+              className={buttonClassName({
+                size: "lg",
+                className:
+                  "w-full bg-action-primary text-action-primary-foreground hover:brightness-110 sm:w-auto",
+              })}
+            >
+              Next chapter <ChevronRight className="h-5 w-5" aria-hidden="true" />
+            </button>
             <EndLibraryAction
               mangaId={mangaId}
               mangaTitle={mangaTitle}
               coverUrl={coverUrl}
+              emphasis="secondary"
+            />
+          </>
+        ) : (
+          <>
+            {/* Caught up: following for new drops is the natural next action, so
+                the library CTA takes the primary violet slot. */}
+            <EndLibraryAction
+              mangaId={mangaId}
+              mangaTitle={mangaTitle}
+              coverUrl={coverUrl}
+              emphasis="primary"
             />
             <Link
               href={backHref}
@@ -1586,13 +1638,15 @@ function ChapterEndMomentumCard({
       </div>
 
       {prevId && (
-        <button
-          type="button"
-          onClick={() => router.push(`/read/${prevId}`)}
-          className="mt-4 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-reader-muted transition hover:text-reader-foreground focus-visible:ring-2 focus-visible:ring-reader-focus"
-        >
-          <ChevronLeft className="h-4 w-4" aria-hidden="true" /> Previous chapter
-        </button>
+        <div className="mt-4 flex justify-center">
+          <button
+            type="button"
+            onClick={() => router.push(`/read/${prevId}`)}
+            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-reader-muted transition hover:text-reader-foreground focus-visible:ring-2 focus-visible:ring-reader-focus"
+          >
+            <ChevronLeft className="h-4 w-4" aria-hidden="true" /> Previous chapter
+          </button>
+        </div>
       )}
     </motion.div>
   );

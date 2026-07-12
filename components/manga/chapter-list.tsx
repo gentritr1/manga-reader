@@ -12,6 +12,7 @@ import {
   type ChapterProgress,
 } from "@/lib/reading-progress";
 import { InternalAdPreview } from "@/components/ads/internal-ad-preview";
+import { useAdGate } from "@/components/ads/ad-gate-provider";
 import { cn } from "@/lib/utils";
 
 type SortDirection = "newest" | "oldest";
@@ -131,6 +132,12 @@ function ChapterRow({
         ) : null}
       </p>
       <Meta c={c} secondsPerPage={secondsPerPage} />
+      {inProgress && progress ? (
+        <p className="mt-0.5 truncate text-xs font-medium text-content-secondary">
+          Continue · page {progress.page}
+          {progress.totalPages ? ` of ${progress.totalPages}` : ""}
+        </p>
+      ) : null}
     </div>
   );
 
@@ -142,7 +149,7 @@ function ChapterRow({
           target="_blank"
           rel="noopener noreferrer"
           aria-label={`${accessibleName} (official external)`}
-          className="flex items-center justify-between gap-3 px-4 py-3 transition hover:bg-muted focus-visible:bg-muted"
+          className="flex items-center justify-between gap-3 px-4 py-3 transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus"
         >
           {title}
           <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
@@ -162,7 +169,7 @@ function ChapterRow({
         href={`/read/${c.id}`}
         prefetch={false}
         aria-label={`${accessibleName}${statusSuffix}`}
-        className="group flex items-center justify-between gap-3 px-4 py-3 transition hover:bg-muted focus-visible:bg-muted"
+        className="group flex items-center justify-between gap-3 px-4 py-3 transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-focus"
       >
         {title}
         {finished ? (
@@ -243,15 +250,33 @@ function VolumeSection({
   );
 }
 
+// In-list ad break. AdsterraAdSlot returns null whenever ads are gated off
+// (every viewer except the two ad-enabled accounts, plus all of SSR), so gating
+// the bordered wrapper on the same signal stops an empty bordered strip from
+// painting under the chapter rows.
+function ChapterListAd() {
+  const { showAds } = useAdGate();
+  if (!showAds) return null;
+  return (
+    <div className="border-t border-line-subtle/70 bg-card px-4 py-5">
+      <InternalAdPreview placement="banner" />
+    </div>
+  );
+}
+
 export function ChapterList({
   chapters,
   mangaId,
   secondsPerPage,
+  total,
 }: {
   // Numeric-ascending chapters (as produced by sortChaptersByNumber).
   chapters: SimpleChapter[];
   mangaId: string;
   secondsPerPage?: number | null;
+  // Total chapter count for the section heading. When provided, the heading sits
+  // inline with the sort toggle on one row.
+  total?: number;
 }) {
   const [direction, setDirection] = useState<SortDirection>("newest");
   const [progressByChapter, setProgressByChapter] = useState<
@@ -291,6 +316,17 @@ export function ChapterList({
       .map((g) => ({ ...g, chapters: [...g.chapters].reverse() }));
   }, [ascendingGroups, direction]);
 
+  // Small series don't need the volume <details> ceremony — a 3-chapter title
+  // rendered two collapsible sections. Flatten to a plain sorted 2-col list when
+  // there are few chapters or at most a couple of volume groups; rows keep their
+  // "Vol. X · Chapter Y" label prefix, so no grouping information is lost.
+  // Grouping stays for the 200-chapter case it was built for.
+  const isFlat = chapters.length <= 12 || ascendingGroups.length <= 2;
+  const flatChapters = useMemo(
+    () => displayGroups.flatMap((g) => g.chapters),
+    [displayGroups],
+  );
+
   const handleToggle = (key: string, isOpen: boolean) => {
     setOpenKeys((prev) => {
       const next = new Set(prev);
@@ -310,7 +346,15 @@ export function ChapterList({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-end">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {total != null ? (
+          <h2 className="font-display text-xl font-bold">
+            Chapters{" "}
+            <span className="text-base font-normal text-muted-foreground">
+              ({total})
+            </span>
+          </h2>
+        ) : null}
         <div
           role="group"
           aria-label="Sort chapters"
@@ -344,22 +388,34 @@ export function ChapterList({
       </div>
 
       <div className="sm:overflow-hidden sm:rounded-xl sm:border sm:border-line-subtle">
-        {displayGroups.map((group, index) => (
-          <Fragment key={group.key}>
-            <VolumeSection
-              group={group}
-              secondsPerPage={secondsPerPage}
-              open={openKeys.has(group.key)}
-              onToggle={handleToggle}
-              progressByChapter={progressByChapter}
-            />
-            {index === 0 && displayGroups.length > 1 && (
-              <div className="border-t border-line-subtle/70 bg-card px-4 py-5">
-                <InternalAdPreview placement="banner" />
-              </div>
-            )}
-          </Fragment>
-        ))}
+        {isFlat ? (
+          <>
+            <ul className="grid grid-cols-1 gap-x-6 lg:grid-cols-2">
+              {flatChapters.map((c) => (
+                <ChapterRow
+                  key={c.id}
+                  c={c}
+                  secondsPerPage={secondsPerPage}
+                  progress={progressByChapter.get(c.id)}
+                />
+              ))}
+            </ul>
+            <ChapterListAd />
+          </>
+        ) : (
+          displayGroups.map((group, index) => (
+            <Fragment key={group.key}>
+              <VolumeSection
+                group={group}
+                secondsPerPage={secondsPerPage}
+                open={openKeys.has(group.key)}
+                onToggle={handleToggle}
+                progressByChapter={progressByChapter}
+              />
+              {index === 0 && displayGroups.length > 1 && <ChapterListAd />}
+            </Fragment>
+          ))
+        )}
       </div>
     </div>
   );

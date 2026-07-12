@@ -244,12 +244,6 @@ export default async function MangaDetailPage({
 
       <div className="relative mx-auto max-w-5xl px-4 pb-8 pt-2">
         <div className="space-y-4">
-          <h2 className="font-display text-xl font-bold">
-            Chapters{" "}
-            <span className="text-base font-normal text-muted-foreground">
-              ({feed.total})
-            </span>
-          </h2>
           {licensedOnly && (
             <div className="rounded-card border border-warning-line bg-warning-surface p-4 text-sm text-warning-content">
               <p className="font-medium">
@@ -266,6 +260,7 @@ export default async function MangaDetailPage({
             chapters={sortedChapters}
             mangaId={manga.id}
             secondsPerPage={readingAnalytics?.averageSecondsPerPage}
+            total={feed.total}
           />
         </div>
       </div>
