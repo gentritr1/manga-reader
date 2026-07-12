@@ -9,6 +9,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type RefObject,
 } from "react";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
@@ -20,6 +21,7 @@ import {
   Maximize2,
   Minimize2,
   Rows3,
+  SlidersHorizontal,
   X,
 } from "lucide-react";
 import { InternalAdPreview } from "@/components/ads/internal-ad-preview";
@@ -38,6 +40,156 @@ import {
 import { cn } from "@/lib/utils";
 
 type Mode = "vertical" | "paged";
+type Direction = "ltr" | "rtl";
+type Spread = "single" | "double";
+type FitMode = "fit-width" | "fit-height" | "original";
+
+const READER_PREFS_PREFIX = "yomi-reader-prefs:";
+const GLOBAL_MODE_KEY = "reader-mode";
+// Viewport threshold below which double-page spread silently falls back to
+// single pages (state is preserved, only rendering/navigation change).
+const SPREAD_MIN_WIDTH = 1024;
+
+interface ReaderPrefs {
+  mode: Mode;
+  direction: Direction;
+  spread: Spread;
+  spreadOffset: boolean;
+  // null means "not explicitly chosen" → the effective fit is derived from the
+  // current mode (vertical → fit-width, paged → fit-height) so existing users
+  // see zero change until they opt in.
+  fit: FitMode | null;
+}
+
+// Effective fit falls back to the per-mode default when the user hasn't picked
+// one explicitly. Keeps fresh-localStorage rendering identical to before PR-4.
+function effectiveFitFor(fit: FitMode | null, mode: Mode): FitMode {
+  if (fit) return fit;
+  return mode === "vertical" ? "fit-width" : "fit-height";
+}
+
+function readerPrefsKey(mangaId: string) {
+  return `${READER_PREFS_PREFIX}${mangaId}`;
+}
+
+function readReaderPrefs(mangaId: string): ReaderPrefs | null {
+  try {
+    const raw = localStorage.getItem(readerPrefsKey(mangaId));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<ReaderPrefs>;
+    const mode: Mode = parsed.mode === "paged" ? "paged" : "vertical";
+    const direction: Direction = parsed.direction === "rtl" ? "rtl" : "ltr";
+    const spread: Spread = parsed.spread === "double" ? "double" : "single";
+    const spreadOffset = parsed.spreadOffset === true;
+    const fit: FitMode | null =
+      parsed.fit === "fit-width" ||
+      parsed.fit === "fit-height" ||
+      parsed.fit === "original"
+        ? parsed.fit
+        : null;
+    return { mode, direction, spread, spreadOffset, fit };
+  } catch {
+    return null;
+  }
+}
+
+function writeReaderPrefs(mangaId: string, prefs: ReaderPrefs) {
+  try {
+    localStorage.setItem(readerPrefsKey(mangaId), JSON.stringify(prefs));
+  } catch {}
+}
+
+// --- Paged-mode pairing model -------------------------------------------------
+// Logical page order NEVER changes (1..total). These helpers only decide how
+// logical pages are grouped into on-screen "views" and how the leading page of
+// each view advances. `slide` always holds the LOWEST logical page of the
+// current view (0 = intro, total+1 = end sentinel), so progress persistence and
+// session tracking keep recording the first page of the visible pair unchanged.
+//
+// Default (offset off): page 1 is shown ALONE (cover convention), then pairs
+//   1 | 2-3 | 4-5 | 6-7 ...  (even leading pages after the cover)
+// Offset on ("shift pairing by one"): no lone cover, pairs from the start
+//   1-2 | 3-4 | 5-6 ...  (odd leading pages)
+
+function pageViewMembers(
+  leading: number,
+  total: number,
+  doubleSpread: boolean,
+  offset: boolean,
+): number[] {
+  if (!doubleSpread) return [leading];
+  if (!offset && leading === 1) return [1];
+  return leading + 1 <= total ? [leading, leading + 1] : [leading];
+}
+
+// Snap an arbitrary logical page to the leading page of the view that contains
+// it, given the active pairing. Used when spread/offset toggles mid-read or when
+// resuming at a stored page.
+function leadingPageFor(
+  page: number,
+  doubleSpread: boolean,
+  offset: boolean,
+): number {
+  if (!doubleSpread) return page;
+  if (!offset) {
+    if (page <= 1) return 1;
+    return page % 2 === 0 ? page : page - 1;
+  }
+  return page % 2 === 1 ? page : page - 1;
+}
+
+function nextLeadingPage(
+  leading: number,
+  doubleSpread: boolean,
+  offset: boolean,
+): number {
+  if (!doubleSpread) return leading + 1;
+  if (!offset) return leading === 1 ? 2 : leading + 2;
+  return leading + 2;
+}
+
+function prevLeadingPage(
+  leading: number,
+  doubleSpread: boolean,
+  offset: boolean,
+): number {
+  if (!doubleSpread) return leading - 1;
+  if (!offset) return leading === 2 ? 1 : leading - 2;
+  return leading - 2;
+}
+
+// Tailwind class for a single page <img> under the active fit mode.
+// fit-height reproduces the pre-PR-4 sizing exactly for both readers.
+function pageImageClassName(
+  fit: FitMode,
+  mode: Mode,
+  zenMode: boolean,
+): string {
+  if (mode === "paged") {
+    switch (fit) {
+      case "fit-width":
+        return "h-auto w-full max-w-full drop-shadow-2xl";
+      case "original":
+        return "h-auto w-auto max-w-[min(100%,1600px)] drop-shadow-2xl";
+      case "fit-height":
+      default:
+        return cn(
+          "w-auto max-w-full object-contain drop-shadow-2xl transition-all duration-300",
+          zenMode ? "max-h-screen" : "max-h-[calc(100vh-7rem)]",
+        );
+    }
+  }
+  // vertical
+  switch (fit) {
+    case "fit-height":
+      return "mx-auto max-h-[100vh] w-auto object-contain";
+    case "original":
+      return "mx-auto h-auto w-auto max-w-full";
+    case "fit-width":
+    default:
+      return "h-auto w-full";
+  }
+}
 
 // True when focus sits in a text field, contenteditable, or an open dialog
 // (e.g. the search palette) — reader keyboard shortcuts must yield to those.
@@ -276,6 +428,19 @@ function ReaderContent(props: Props) {
   const { imageUrls, prevId, nextId, mangaId, useDataSaver } = props;
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("vertical");
+  // PR-4 reader preferences (paged direction/spread + fit), persisted per title.
+  const [direction, setDirection] = useState<Direction>("ltr");
+  const [spread, setSpread] = useState<Spread>("single");
+  const [spreadOffset, setSpreadOffset] = useState(false);
+  const [fit, setFit] = useState<FitMode | null>(null);
+  // Wide enough for a two-page spread? Defaults false for SSR/hydration safety,
+  // then reflects the live viewport. Double spread only renders when true.
+  const [isWideViewport, setIsWideViewport] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsTriggerRef = useRef<HTMLButtonElement>(null);
+  const settingsPanelRef = useRef<HTMLDivElement>(null);
+  const doubleSpread = spread === "double" && isWideViewport;
+  const effectiveFit = effectiveFitFor(fit, mode);
   const [zenMode, setZenMode] = useState(false);
   const toggleZenMode = useCallback(() => setZenMode((z) => !z), []);
   // Idle-fade for the top bar: hides after inactivity, restores on any activity
@@ -674,17 +839,133 @@ function ReaderContent(props: Props) {
     });
   }, [shouldPreloadNext, nextId, useDataSaver]);
 
-  // Restore preferred mode.
+  // Restore reader preferences. Fallback chain: per-title prefs → global
+  // reader-mode key (legacy default) → hardcoded defaults. A NEW manga (no
+  // per-title prefs yet) starts from the global default mode; no key is written
+  // until the user actually changes a setting.
   useEffect(() => {
-    const saved = localStorage.getItem("reader-mode") as Mode | null;
-    if (saved !== "vertical" && saved !== "paged") return;
-    const frame = requestAnimationFrame(() => setMode(saved));
+    const prefs = mangaId ? readReaderPrefs(mangaId) : null;
+    const frame = requestAnimationFrame(() => {
+      if (prefs) {
+        setMode(prefs.mode);
+        setDirection(prefs.direction);
+        setSpread(prefs.spread);
+        setSpreadOffset(prefs.spreadOffset);
+        setFit(prefs.fit);
+        return;
+      }
+      const savedMode = localStorage.getItem(GLOBAL_MODE_KEY);
+      if (savedMode === "vertical" || savedMode === "paged") setMode(savedMode);
+    });
     return () => cancelAnimationFrame(frame);
+  }, [mangaId]);
+
+  // Track viewport width for the spread threshold.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const query = window.matchMedia(`(min-width: ${SPREAD_MIN_WIDTH}px)`);
+    const apply = () => setIsWideViewport(query.matches);
+    apply();
+    query.addEventListener("change", apply);
+    return () => query.removeEventListener("change", apply);
   }, []);
-  const changeMode = (m: Mode) => {
-    setMode(m);
-    localStorage.setItem("reader-mode", m);
-  };
+
+  // Persist the full prefs object for this title. Called from each change
+  // handler with the changed field(s); merges over current state so a single
+  // write always captures the whole object. No-op without a mangaId.
+  const persistPrefs = useCallback(
+    (next: Partial<ReaderPrefs>) => {
+      if (!mangaId) return;
+      writeReaderPrefs(mangaId, {
+        mode,
+        direction,
+        spread,
+        spreadOffset,
+        fit,
+        ...next,
+      });
+    },
+    [mangaId, mode, direction, spread, spreadOffset, fit],
+  );
+
+  const changeMode = useCallback(
+    (m: Mode) => {
+      setMode(m);
+      // Keep writing the global default so a brand-new manga inherits it.
+      localStorage.setItem(GLOBAL_MODE_KEY, m);
+      persistPrefs({ mode: m });
+    },
+    [persistPrefs],
+  );
+  const changeDirection = useCallback(
+    (d: Direction) => {
+      setDirection(d);
+      persistPrefs({ direction: d });
+    },
+    [persistPrefs],
+  );
+  const changeSpread = useCallback(
+    (s: Spread) => {
+      setSpread(s);
+      persistPrefs({ spread: s });
+    },
+    [persistPrefs],
+  );
+  const toggleSpreadOffset = useCallback(() => {
+    const nextValue = !spreadOffset;
+    setSpreadOffset(nextValue);
+    persistPrefs({ spreadOffset: nextValue });
+  }, [spreadOffset, persistPrefs]);
+  const changeFit = useCallback(
+    (f: FitMode) => {
+      setFit(f);
+      persistPrefs({ fit: f });
+    },
+    [persistPrefs],
+  );
+
+  const closeSettings = useCallback((returnFocus: boolean) => {
+    setSettingsOpen(false);
+    if (returnFocus) settingsTriggerRef.current?.focus();
+  }, []);
+
+  // Settings panel: focus the first control on open, Escape closes and returns
+  // focus to the trigger, outside pointerdown light-dismisses. Focus lands
+  // inside the panel (role="dialog"), so isKeyboardCaptureTarget() is true while
+  // it is open — arrows inside never turn pages.
+  useEffect(() => {
+    if (!settingsOpen) return;
+    const panel = settingsPanelRef.current;
+    panel
+      ?.querySelector<HTMLElement>(
+        'button, [href], input, [tabindex]:not([tabindex="-1"])',
+      )
+      ?.focus();
+
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        closeSettings(true);
+      }
+    };
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as Node;
+      if (
+        settingsPanelRef.current?.contains(target) ||
+        settingsTriggerRef.current?.contains(target)
+      ) {
+        return;
+      }
+      closeSettings(false);
+    };
+    document.addEventListener("keydown", onKey, true);
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () => {
+      document.removeEventListener("keydown", onKey, true);
+      document.removeEventListener("pointerdown", onPointerDown, true);
+    };
+  }, [settingsOpen, closeSettings]);
 
   // Record reading progress.
   useEffect(() => {
@@ -735,7 +1016,7 @@ function ReaderContent(props: Props) {
 
       if (mode === "paged") {
         setSlideDirection(page >= slide ? 1 : -1);
-        setSlide(page);
+        setSlide(leadingPageFor(page, doubleSpread, spreadOffset));
         return;
       }
 
@@ -747,40 +1028,72 @@ function ReaderContent(props: Props) {
         behavior: prefersReducedMotion ? "auto" : "smooth",
       });
     },
-    [mode, recordPageProgress, slide, total],
+    [mode, recordPageProgress, slide, total, doubleSpread, spreadOffset],
   );
 
-  // Paged navigation + keyboard.
+  // Paged navigation + keyboard. Advances by the pair size in double spread;
+  // `slide` stays the leading (lowest) logical page of the view. Direction only
+  // changes which key/zone triggers next vs prev — never the logical order here.
   const next = useCallback(() => {
     setSlideDirection(1);
     setSlide((s) => {
-      if (s < lastSlide) {
-        if (s === total) captureChapterEnd();
-        return s + 1;
+      if (s >= lastSlide) {
+        goNextChapter();
+        return s;
       }
-      goNextChapter();
-      return s;
+      if (s === 0) return 1; // intro → first view (always leads at page 1)
+      const target = nextLeadingPage(s, doubleSpread, spreadOffset);
+      if (target > total) {
+        captureChapterEnd();
+        return lastSlide;
+      }
+      return target;
     });
-  }, [captureChapterEnd, lastSlide, goNextChapter, total]);
+  }, [captureChapterEnd, lastSlide, goNextChapter, total, doubleSpread, spreadOffset]);
   const prev = useCallback(() => {
     setSlideDirection(-1);
     setSlide((s) => {
-      if (s > 0) return s - 1;
-      goPrevChapter();
-      return s;
+      if (s <= 0) {
+        goPrevChapter();
+        return s;
+      }
+      if (s === lastSlide) {
+        // End sentinel → back to the last content view's leading page.
+        return leadingPageFor(total, doubleSpread, spreadOffset);
+      }
+      const target = prevLeadingPage(s, doubleSpread, spreadOffset);
+      return target < 1 ? 0 : target;
     });
-  }, [goPrevChapter]);
+  }, [goPrevChapter, lastSlide, total, doubleSpread, spreadOffset]);
+
+  // When the pairing changes (spread toggled, offset toggled, or the viewport
+  // crosses the spread threshold — an external signal) re-snap the current
+  // content page to a valid leading page so the view stays aligned. Reacting to
+  // that external change is exactly what this effect is for; the functional
+  // update is a no-op unless the leading page actually shifts.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSlide((s) => {
+      if (s <= 0 || s > total) return s;
+      return leadingPageFor(s, doubleSpread, spreadOffset);
+    });
+  }, [doubleSpread, spreadOffset, total]);
 
   useEffect(() => {
     if (mode !== "paged") return;
+    // In RTL the next page in reading order is reached with ArrowLeft. The
+    // settings panel is role="dialog", so isKeyboardCaptureTarget() keeps arrows
+    // pressed inside it from turning pages.
+    const forwardKey = direction === "rtl" ? "ArrowLeft" : "ArrowRight";
+    const backKey = direction === "rtl" ? "ArrowRight" : "ArrowLeft";
     const onKey = (e: KeyboardEvent) => {
       if (e.defaultPrevented || isKeyboardCaptureTarget()) return;
-      if (e.key === "ArrowRight") next();
-      else if (e.key === "ArrowLeft") prev();
+      if (e.key === forwardKey) next();
+      else if (e.key === backKey) prev();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [mode, next, prev]);
+  }, [mode, next, prev, direction]);
 
   // Vertical-mode scrolling ('j/k', arrows, PageUp/Down, Home/End) plus the
   // shared 'z' zen toggle available in both modes. Space is intentionally left
@@ -843,12 +1156,17 @@ function ReaderContent(props: Props) {
   // Preload neighbour image in paged mode.
   useEffect(() => {
     if (mode !== "paged" || !allowsSpeculativeImagePreload()) return;
-    const nextPage = slide + 1;
-    if (nextPage >= 1 && nextPage <= total) {
-      const img = new Image();
-      img.src = imageUrls[nextPage - 1];
-    }
-  }, [slide, mode, imageUrls, total]);
+    // Warm the next logical page(s). Double spread advances two at a time, so
+    // preload two ahead; logical order is unchanged.
+    const ahead = doubleSpread ? [1, 2, 3] : [1];
+    ahead.forEach((delta) => {
+      const nextPage = slide + delta;
+      if (nextPage >= 1 && nextPage <= total) {
+        const img = new Image();
+        img.src = imageUrls[nextPage - 1];
+      }
+    });
+  }, [slide, mode, imageUrls, total, doubleSpread]);
 
   const backHref = mangaId ? `/manga/${mangaId}` : "/";
   const readerStyle = { "--series-tint": DEFAULT_SERIES_TINT } as CSSProperties;
@@ -883,7 +1201,7 @@ function ReaderContent(props: Props) {
         </div>
       )}
       {/* Top bar */}
-      <header ref={readerHeaderRef} className={cn("sticky top-0 z-30 flex min-h-14 items-center gap-3 border-b border-reader-line bg-reader-chrome px-4 backdrop-blur transition-all duration-300", zenMode && "-translate-y-full opacity-0 pointer-events-none", !zenMode && chromeIdle && "opacity-0 pointer-events-none")}>
+      <header ref={readerHeaderRef} className={cn("sticky top-0 z-30 flex min-h-14 items-center gap-3 border-b border-reader-line bg-reader-chrome px-4 backdrop-blur transition-all duration-300", zenMode && !settingsOpen && "-translate-y-full opacity-0 pointer-events-none", !zenMode && chromeIdle && !settingsOpen && "opacity-0 pointer-events-none")}>
         <Link
           href={backHref}
           prefetch={false}
@@ -931,6 +1249,38 @@ function ReaderContent(props: Props) {
           >
             <Columns2 className="h-5 w-5" aria-hidden="true" />
           </button>
+          <div className="relative">
+            <button
+              ref={settingsTriggerRef}
+              type="button"
+              onClick={() => setSettingsOpen((open) => !open)}
+              aria-label="Reader settings"
+              aria-haspopup="dialog"
+              aria-expanded={settingsOpen}
+              className={cn(
+                "grid h-11 w-11 place-items-center rounded-lg transition hover:bg-reader-control-hover focus-visible:ring-2 focus-visible:ring-reader-focus",
+                settingsOpen && "bg-reader-control-selected",
+              )}
+            >
+              <SlidersHorizontal className="h-5 w-5" aria-hidden="true" />
+            </button>
+            {settingsOpen && (
+              <ReaderSettingsPanel
+                panelRef={settingsPanelRef}
+                mode={mode}
+                direction={direction}
+                spread={spread}
+                spreadOffset={spreadOffset}
+                effectiveFit={effectiveFit}
+                isWideViewport={isWideViewport}
+                onChangeDirection={changeDirection}
+                onChangeSpread={changeSpread}
+                onToggleSpreadOffset={toggleSpreadOffset}
+                onChangeFit={changeFit}
+                onClose={() => closeSettings(true)}
+              />
+            )}
+          </div>
           <button
             type="button"
             onClick={toggleZenMode}
@@ -950,6 +1300,7 @@ function ReaderContent(props: Props) {
       {mode === "vertical" ? (
         <VerticalReader
           {...props}
+          fit={effectiveFit}
           toggleZenMode={toggleZenMode}
           onPageVisible={markVerticalPageVisible}
           chapterEndStats={chapterEndStats}
@@ -965,6 +1316,10 @@ function ReaderContent(props: Props) {
           total={total}
           lastSlide={lastSlide}
           slideDirection={slideDirection}
+          direction={direction}
+          doubleSpread={doubleSpread}
+          spreadOffset={spreadOffset}
+          fit={effectiveFit}
           onNext={next}
           onPrev={prev}
           zenMode={zenMode}
@@ -1192,6 +1547,7 @@ function ChapterEndMomentumCard({
 
 function VerticalReader(
   props: Props & {
+    fit: FitMode;
     toggleZenMode: () => void;
     onPageVisible: (pageNumber: number) => void;
     chapterEndStats: ReaderSessionSnapshot | null;
@@ -1201,8 +1557,14 @@ function VerticalReader(
     onChapterEndVisible: () => void;
   },
 ) {
+  const pageImageClass = pageImageClassName(props.fit, "vertical", false);
   return (
-    <div className="mx-auto max-w-3xl">
+    <div
+      className={cn(
+        "mx-auto",
+        props.fit === "fit-width" ? "max-w-3xl" : "max-w-[1600px]",
+      )}
+    >
       <div className="flex flex-col items-center" onClick={props.toggleZenMode}>
         {props.imageUrls.map((src, i) => (
           <ReaderPageImage
@@ -1212,7 +1574,7 @@ function VerticalReader(
             pageNumber={i + 1}
             eager={i < 2}
             onVisible={props.onPageVisible}
-            imageClassName="h-auto w-full"
+            imageClassName={pageImageClass}
           />
         ))}
       </div>
@@ -1351,6 +1713,10 @@ function PagedReader({
   slideDirection,
   total,
   lastSlide,
+  direction,
+  doubleSpread,
+  spreadOffset,
+  fit,
   onNext,
   onPrev,
   prevId,
@@ -1373,6 +1739,10 @@ function PagedReader({
   slideDirection: 1 | -1;
   total: number;
   lastSlide: number;
+  direction: Direction;
+  doubleSpread: boolean;
+  spreadOffset: boolean;
+  fit: FitMode;
   onNext: () => void;
   onPrev: () => void;
   zenMode: boolean;
@@ -1388,10 +1758,38 @@ function PagedReader({
   const isEnd = slide === lastSlide;
   const prevDisabled = isIntro && !prevId;
   const nextDisabled = isEnd && !nextId;
+  const isContent = !isIntro && !isEnd;
 
-  // Directional page-turn: NEXT slides the incoming page in from the right,
-  // PREV from the left, so the motion encodes reading direction. Reduced-motion
-  // drops the translate and keeps a plain opacity fade.
+  // Logical pages visible in the current view, and their on-screen order. RTL
+  // puts the LOWER page number on the RIGHT (Japanese book order), so we reverse
+  // the DOM order; the counter always reads low-high regardless.
+  const viewMembers = isContent
+    ? pageViewMembers(slide, total, doubleSpread, spreadOffset)
+    : [];
+  const renderPages =
+    direction === "rtl" ? [...viewMembers].reverse() : viewMembers;
+  const isSpreadView = viewMembers.length > 1;
+  const pageImageClass = pageImageClassName(fit, "paged", zenMode);
+  // fit-height keeps the whole view centered; fit-width/original may exceed the
+  // viewport and need a scrollable, top-aligned container.
+  const scrollable = isContent && fit !== "fit-height";
+  // Direction-aware page counter, e.g. "4-5 / 26".
+  const pageCounter = isIntro
+    ? "Start"
+    : isEnd
+      ? "End"
+      : isSpreadView
+        ? `${viewMembers[0]}-${viewMembers[1]} / ${total}`
+        : `${viewMembers[0]} / ${total}`;
+  // Left/right click zones map to reading order per direction: in RTL the LEFT
+  // half advances (next), the RIGHT half goes back.
+  const leftZoneAction = direction === "rtl" ? onNext : onPrev;
+  const rightZoneAction = direction === "rtl" ? onPrev : onNext;
+
+  // Directional page-turn: in LTR, NEXT slides the incoming page in from the
+  // right; in RTL the slide inverts so NEXT comes in from the left. Reduced
+  // motion drops the translate and keeps a plain opacity fade.
+  const motionSign = slideDirection * (direction === "rtl" ? -1 : 1);
   const slideMotion = reduceMotion
     ? {
         initial: { opacity: 0 },
@@ -1399,9 +1797,9 @@ function PagedReader({
         exit: { opacity: 0 },
       }
     : {
-        initial: { opacity: 0, x: slideDirection > 0 ? 28 : -28 },
+        initial: { opacity: 0, x: motionSign > 0 ? 28 : -28 },
         animate: { opacity: 1, x: 0 },
-        exit: { opacity: 0, x: slideDirection > 0 ? -28 : 28 },
+        exit: { opacity: 0, x: motionSign > 0 ? -28 : 28 },
       };
   const slideContent = isIntro ? (
     <div className="w-full max-w-xl space-y-6 text-center">
@@ -1460,17 +1858,31 @@ function PagedReader({
           className="absolute left-1/2 top-1/2 h-[70vh] w-[min(56rem,80vw)] -translate-x-1/2 -translate-y-1/2 rounded-full blur-[96px] [background:var(--series-tint)]"
         />
       </div>
-      <ReaderPageImage
-        key={imageUrls[slide - 1]}
-        src={imageUrls[slide - 1]}
-        alt={`Page ${slide}`}
-        pageNumber={slide}
-        eager
-        imageClassName={cn(
-          "w-auto max-w-full object-contain drop-shadow-2xl transition-all duration-300",
-          zenMode ? "max-h-screen" : "max-h-[calc(100vh-7rem)]",
+      <div
+        className={cn(
+          "flex w-full justify-center gap-1",
+          fit === "fit-width" ? "items-start" : "items-center",
         )}
-      />
+      >
+        {renderPages.map((pageNumber) => (
+          <div
+            key={pageNumber}
+            className={cn(
+              "flex min-w-0 justify-center",
+              isSpreadView ? "flex-1" : "w-full",
+            )}
+          >
+            <ReaderPageImage
+              key={imageUrls[pageNumber - 1]}
+              src={imageUrls[pageNumber - 1]}
+              alt={`Page ${pageNumber}`}
+              pageNumber={pageNumber}
+              eager
+              imageClassName={pageImageClass}
+            />
+          </div>
+        ))}
+      </div>
     </>
   );
 
@@ -1480,7 +1892,14 @@ function PagedReader({
 
   return (
     <div className="relative flex min-h-[calc(100vh-3.5rem)] flex-col">
-      <div className="flex flex-1 items-center justify-center p-4">
+      <div
+        className={cn(
+          "flex flex-1 p-4",
+          scrollable
+            ? "items-start justify-center overflow-auto"
+            : "items-center justify-center",
+        )}
+      >
         <AnimatePresence mode="wait" initial={false}>
           <motion.div
             key={slide}
@@ -1495,15 +1914,18 @@ function PagedReader({
         </AnimatePresence>
       </div>
 
-      {/* Click zones */}
-      {!isIntro && !isEnd && (
+      {/* Click zones. Left/right map to reading order per direction. */}
+      {isContent && (
         <>
           <button
             type="button"
             aria-hidden="true"
             tabIndex={-1}
-            onClick={onPrev}
-            className="absolute inset-y-0 left-0 w-1/3 cursor-w-resize"
+            onClick={leftZoneAction}
+            className={cn(
+              "absolute inset-y-0 left-0 w-1/3",
+              direction === "rtl" ? "cursor-e-resize" : "cursor-w-resize",
+            )}
           />
           <button
             type="button"
@@ -1516,8 +1938,11 @@ function PagedReader({
             type="button"
             aria-hidden="true"
             tabIndex={-1}
-            onClick={onNext}
-            className="absolute inset-y-0 right-0 w-1/3 cursor-e-resize"
+            onClick={rightZoneAction}
+            className={cn(
+              "absolute inset-y-0 right-0 w-1/3",
+              direction === "rtl" ? "cursor-w-resize" : "cursor-e-resize",
+            )}
           />
         </>
       )}
@@ -1531,10 +1956,14 @@ function PagedReader({
           aria-label={isIntro ? "Previous chapter" : "Previous page"}
           className="grid h-11 min-w-11 place-items-center rounded-lg px-3 hover:bg-reader-control-hover focus-visible:ring-2 focus-visible:ring-reader-focus disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
         >
-          <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+          {direction === "rtl" ? (
+            <ChevronRight className="h-5 w-5" aria-hidden="true" />
+          ) : (
+            <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+          )}
         </button>
-        <span className="text-reader-muted" aria-live="polite">
-          {isIntro ? "Start" : isEnd ? "End" : `${slide} / ${total}`}
+        <span className="text-reader-muted tabular-nums" aria-live="polite">
+          {pageCounter}
         </span>
         <button
           type="button"
@@ -1543,8 +1972,191 @@ function PagedReader({
           aria-label={isEnd ? "Next chapter" : "Next page"}
           className="grid h-11 min-w-11 place-items-center rounded-lg px-3 hover:bg-reader-control-hover focus-visible:ring-2 focus-visible:ring-reader-focus disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
         >
-          <ChevronRight className="h-5 w-5" aria-hidden="true" />
+          {direction === "rtl" ? (
+            <ChevronLeft className="h-5 w-5" aria-hidden="true" />
+          ) : (
+            <ChevronRight className="h-5 w-5" aria-hidden="true" />
+          )}
         </button>
+      </div>
+    </div>
+  );
+}
+
+function SegmentedRadioGroup<T extends string>({
+  label,
+  value,
+  options,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: { value: T; label: string; ariaLabel?: string }[];
+  disabled?: boolean;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label={label}
+      className="flex gap-1 rounded-lg bg-reader-canvas/60 p-1"
+    >
+      {options.map((option) => {
+        const active = value === option.value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            role="radio"
+            aria-checked={active}
+            aria-label={option.ariaLabel ?? option.label}
+            disabled={disabled}
+            onClick={() => onChange(option.value)}
+            className={cn(
+              "flex-1 rounded-md px-2 py-1.5 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-reader-focus disabled:cursor-not-allowed disabled:opacity-40",
+              active
+                ? "bg-reader-control-selected text-reader-foreground"
+                : "text-reader-muted hover:bg-reader-control-hover",
+            )}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function ReaderSettingsPanel({
+  panelRef,
+  mode,
+  direction,
+  spread,
+  spreadOffset,
+  effectiveFit,
+  isWideViewport,
+  onChangeDirection,
+  onChangeSpread,
+  onToggleSpreadOffset,
+  onChangeFit,
+  onClose,
+}: {
+  panelRef: RefObject<HTMLDivElement | null>;
+  mode: Mode;
+  direction: Direction;
+  spread: Spread;
+  spreadOffset: boolean;
+  effectiveFit: FitMode;
+  isWideViewport: boolean;
+  onChangeDirection: (value: Direction) => void;
+  onChangeSpread: (value: Spread) => void;
+  onToggleSpreadOffset: () => void;
+  onChangeFit: (value: FitMode) => void;
+  onClose: () => void;
+}) {
+  // Direction and spread only affect paged mode; disable (with a hint) in
+  // vertical mode where they are meaningless. Offset only matters for double.
+  const pagedEnabled = mode === "paged";
+  const offsetEnabled = pagedEnabled && spread === "double";
+  const narrowHint = spread === "double" && !isWideViewport;
+
+  return (
+    <div
+      ref={panelRef}
+      role="dialog"
+      aria-label="Reader settings"
+      className="absolute right-0 top-full z-40 mt-2 w-72 rounded-xl border border-reader-line bg-reader-chrome p-4 text-left shadow-2xl backdrop-blur"
+    >
+      <div className="mb-3 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-reader-foreground">
+          Reader settings
+        </h2>
+        <button
+          type="button"
+          aria-label="Close reader settings"
+          onClick={onClose}
+          className="grid h-8 w-8 place-items-center rounded-lg text-reader-muted transition hover:bg-reader-control-hover hover:text-reader-foreground focus-visible:ring-2 focus-visible:ring-reader-focus"
+        >
+          <X className="h-4 w-4" aria-hidden="true" />
+        </button>
+      </div>
+
+      <div className="space-y-4">
+        <section>
+          <p className="mb-1.5 text-xs font-medium text-reader-muted">
+            Reading direction
+          </p>
+          <SegmentedRadioGroup<Direction>
+            label="Reading direction"
+            value={direction}
+            disabled={!pagedEnabled}
+            onChange={onChangeDirection}
+            options={[
+              { value: "ltr", label: "LTR", ariaLabel: "Left to right" },
+              { value: "rtl", label: "RTL", ariaLabel: "Right to left" },
+            ]}
+          />
+          {!pagedEnabled && (
+            <p className="mt-1.5 text-[11px] text-reader-muted">
+              Available in paged mode.
+            </p>
+          )}
+        </section>
+
+        <section>
+          <p className="mb-1.5 text-xs font-medium text-reader-muted">
+            Page layout
+          </p>
+          <SegmentedRadioGroup<Spread>
+            label="Page layout"
+            value={spread}
+            disabled={!pagedEnabled}
+            onChange={onChangeSpread}
+            options={[
+              { value: "single", label: "Single" },
+              { value: "double", label: "Double" },
+            ]}
+          />
+          <button
+            type="button"
+            aria-pressed={spreadOffset}
+            disabled={!offsetEnabled}
+            onClick={onToggleSpreadOffset}
+            className={cn(
+              "mt-2 flex w-full items-center justify-between rounded-lg border border-reader-line px-3 py-2 text-xs font-medium transition focus-visible:ring-2 focus-visible:ring-reader-focus disabled:cursor-not-allowed disabled:opacity-40",
+              spreadOffset
+                ? "bg-reader-control-selected text-reader-foreground"
+                : "text-reader-muted hover:bg-reader-control-hover",
+            )}
+          >
+            <span>Shift pairing by one</span>
+            <span aria-hidden="true">{spreadOffset ? "On" : "Off"}</span>
+          </button>
+          {!pagedEnabled ? (
+            <p className="mt-1.5 text-[11px] text-reader-muted">
+              Available in paged mode.
+            </p>
+          ) : narrowHint ? (
+            <p className="mt-1.5 text-[11px] text-reader-muted">
+              Screen too narrow — showing single pages.
+            </p>
+          ) : null}
+        </section>
+
+        <section>
+          <p className="mb-1.5 text-xs font-medium text-reader-muted">Fit</p>
+          <SegmentedRadioGroup<FitMode>
+            label="Fit mode"
+            value={effectiveFit}
+            onChange={onChangeFit}
+            options={[
+              { value: "fit-width", label: "Width", ariaLabel: "Fit width" },
+              { value: "fit-height", label: "Height", ariaLabel: "Fit height" },
+              { value: "original", label: "Original", ariaLabel: "Original size" },
+            ]}
+          />
+        </section>
       </div>
     </div>
   );
