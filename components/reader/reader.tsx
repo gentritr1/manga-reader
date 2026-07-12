@@ -26,6 +26,7 @@ import {
   DEFAULT_SERIES_TINT,
   readCachedSeriesTint,
 } from "@/lib/extract-tint";
+import { chapterPageProxyUrl } from "@/lib/mangadex";
 import { formatReadTimeEstimate } from "@/lib/read-time";
 import { useFavorites } from "@/lib/use-favorites";
 import {
@@ -90,15 +91,6 @@ interface Props {
   initialProgressPage?: number | null;
   initialProgressTotalPages?: number | null;
   initialProgressUpdatedAt?: string | null;
-}
-
-function chapterPageProxyUrl(
-  chapterId: string,
-  page: number,
-  useDataSaver: boolean,
-) {
-  const url = `/chapter-page/${chapterId}/${page}`;
-  return useDataSaver ? `${url}?quality=data-saver` : url;
 }
 
 function allowsSpeculativeImagePreload(): boolean {
@@ -253,7 +245,7 @@ export function Reader(props: Props) {
 }
 
 function ReaderContent(props: Props) {
-  const { imageUrls, prevId, nextId, mangaId } = props;
+  const { imageUrls, prevId, nextId, mangaId, useDataSaver } = props;
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("vertical");
   const [zenMode, setZenMode] = useState(false);
@@ -594,9 +586,11 @@ function ReaderContent(props: Props) {
       if (pageNumber === 1) {
         img.onload = () => setNextTeaseReady(true);
       }
-      img.src = `/chapter-page/${nextId}/${pageNumber}`;
+      // Proxy URL (matching the rendered pages' quality) so the preload warms
+      // the same same-origin cache the next chapter will read from.
+      img.src = chapterPageProxyUrl(nextId, pageNumber, useDataSaver);
     });
-  }, [shouldPreloadNext, nextId]);
+  }, [shouldPreloadNext, nextId, useDataSaver]);
 
   // Restore preferred mode.
   useEffect(() => {
@@ -1060,11 +1054,6 @@ function VerticalReader(
           <ReaderPageImage
             key={src}
             src={src}
-            fallbackSrc={chapterPageProxyUrl(
-              props.chapterId,
-              i + 1,
-              props.useDataSaver,
-            )}
             alt={`Page ${i + 1}`}
             pageNumber={i + 1}
             eager={i < 2}
@@ -1096,7 +1085,6 @@ function VerticalReader(
 
 function ReaderPageImage({
   src,
-  fallbackSrc,
   alt,
   pageNumber,
   eager,
@@ -1104,18 +1092,20 @@ function ReaderPageImage({
   imageClassName,
 }: {
   src: string;
-  fallbackSrc: string;
   alt: string;
   pageNumber: number;
   eager: boolean;
   onVisible?: (pageNumber: number) => void;
   imageClassName: string;
 }) {
+  // `src` is the same-origin proxy URL. `attempt` cache-busts each reload of it
+  // (automatic or manual); `manualRetries` bounds the user-driven retries.
   const [failed, setFailed] = useState(false);
-  const [retry, setRetry] = useState(0);
-  const [usingFallback, setUsingFallback] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const [manualRetries, setManualRetries] = useState(0);
+  const autoRetriedRef = useRef(false);
   const pageRef = useRef<HTMLDivElement>(null);
-  const canRetry = retry < MAX_IMAGE_RETRIES;
+  const canRetry = manualRetries < MAX_IMAGE_RETRIES;
 
   useEffect(() => {
     if (!onVisible) return;
@@ -1142,13 +1132,13 @@ function ReaderPageImage({
   const retryNow = () => {
     if (!canRetry) return;
     setFailed(false);
-    setRetry((current) => Math.min(current + 1, MAX_IMAGE_RETRIES));
+    setManualRetries((current) => current + 1);
+    setAttempt((current) => current + 1);
   };
-  const currentSrc = usingFallback ? fallbackSrc : src;
   const imageSrc =
-    retry > 0
-      ? `${currentSrc}${currentSrc.includes("?") ? "&" : "?"}readerRetry=${retry}`
-      : currentSrc;
+    attempt > 0
+      ? `${src}${src.includes("?") ? "&" : "?"}readerRetry=${attempt}`
+      : src;
 
   return (
     <div
@@ -1157,7 +1147,7 @@ function ReaderPageImage({
       className="relative flex w-full justify-center overflow-hidden bg-reader-canvas"
     >
       <img
-        key={`${usingFallback ? "fallback" : "direct"}-${retry}`}
+        key={attempt}
         src={imageSrc}
         alt={alt}
         width={1440}
@@ -1167,10 +1157,12 @@ function ReaderPageImage({
         referrerPolicy="no-referrer"
         onLoad={() => setFailed(false)}
         onError={() => {
-          if (!canRetry && !usingFallback) {
-            setUsingFallback(true);
-            setRetry(0);
-            setFailed(false);
+          // First failure: silently retry the proxy once (cache-busted) before
+          // surfacing any UI. Only if that automatic retry also fails do we
+          // reveal the "Retry page" control.
+          if (!autoRetriedRef.current) {
+            autoRetriedRef.current = true;
+            setAttempt((current) => current + 1);
             return;
           }
           setFailed(true);
@@ -1200,9 +1192,7 @@ function ReaderPageImage({
 }
 
 function PagedReader({
-  chapterId,
   imageUrls,
-  useDataSaver,
   slide,
   slideDirection,
   total,
@@ -1316,7 +1306,6 @@ function PagedReader({
       <ReaderPageImage
         key={imageUrls[slide - 1]}
         src={imageUrls[slide - 1]}
-        fallbackSrc={chapterPageProxyUrl(chapterId, slide, useDataSaver)}
         alt={`Page ${slide}`}
         pageNumber={slide}
         eager

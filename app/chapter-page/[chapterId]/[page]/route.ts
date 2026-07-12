@@ -1,13 +1,58 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { CHAPTER_IMAGE_CACHE, NO_STORE, setSharedCacheHeaders } from "@/lib/cache-headers";
 import { pageImageUrl } from "@/lib/mangadex";
 import { getChapterPages } from "@/lib/mangadex-server";
 
 const UA = "MangaReader/1.0 (https://github.com/manga-reader; contact@example.com)";
+const MD_NETWORK_REPORT = "https://api.mangadex.network/report";
 
 interface Params {
   chapterId: string;
   page: string;
+}
+
+interface MdNetworkReport {
+  url: string;
+  success: boolean;
+  cached: boolean;
+  bytes: number;
+  duration: number;
+}
+
+/**
+ * Report an image fetch to the MangaDex@Home network (required by the API so
+ * nodes stay healthy). Fire-and-forget via `after` so it never blocks or fails
+ * the image response. Official uploads (*.mangadex.org) must not be reported.
+ * See https://api.mangadex.org/docs/04-chapter/retrieving-chapter/.
+ */
+function reportToMangaDexNetwork(report: MdNetworkReport): void {
+  try {
+    if (new URL(report.url).hostname.endsWith("mangadex.org")) return;
+  } catch {
+    return;
+  }
+
+  const send = () =>
+    fetch(MD_NETWORK_REPORT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(report),
+    })
+      .then(() => {
+        if (process.env.NODE_ENV === "development") {
+          console.debug(
+            `[mangadex@home] report success=${report.success} cached=${report.cached} bytes=${report.bytes} duration=${report.duration}ms url=${report.url}`,
+          );
+        }
+      })
+      .catch(() => {});
+
+  try {
+    after(send);
+  } catch {
+    // `after` is only usable within a request scope; fall back to a detached promise.
+    void send();
+  }
 }
 
 function isValidUuid(value: string): boolean {
@@ -55,12 +100,25 @@ export async function GET(
 
   if (range) upstreamHeaders.set("Range", range);
 
+  const startedAt = Date.now();
   try {
     const upstream = await fetch(target, {
       // Avoid storing large MangaDex image bodies and range variants in Next's data cache.
       cache: "no-store",
       headers: upstreamHeaders,
     });
+
+    // A 304 means the client's cache is still valid — no image was fetched from
+    // the @Home node, so there is nothing to report.
+    if (upstream.status !== 304) {
+      reportToMangaDexNetwork({
+        url: target,
+        success: upstream.ok,
+        cached: (upstream.headers.get("x-cache") ?? "").startsWith("HIT"),
+        bytes: Number(upstream.headers.get("content-length")) || 0,
+        duration: Date.now() - startedAt,
+      });
+    }
 
     if (upstream.status === 304) {
       const headers = new Headers();
@@ -111,6 +169,13 @@ export async function GET(
       headers,
     });
   } catch {
+    reportToMangaDexNetwork({
+      url: target,
+      success: false,
+      cached: false,
+      bytes: 0,
+      duration: Date.now() - startedAt,
+    });
     return NextResponse.json(
       { error: "Upstream image request failed" },
       { status: 502, headers: { "Cache-Control": NO_STORE } },

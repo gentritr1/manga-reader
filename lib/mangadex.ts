@@ -39,6 +39,55 @@ export function isReadable(c: SimpleChapter): boolean {
   return c.pages > 0 && !c.externalUrl;
 }
 
+/** Numeric value of a chapter, or +Infinity when it can't be parsed (sorts last). */
+function chapterNumber(c: SimpleChapter): number {
+  const n = c.chapter != null ? parseFloat(c.chapter) : NaN;
+  return Number.isFinite(n) ? n : Number.POSITIVE_INFINITY;
+}
+
+/**
+ * Order chapters ascending by their numeric chapter number. Chapters whose
+ * number is null/unparseable sort last. Ties break by publish time then id so
+ * the ordering is deterministic (the raw API/feed order is not trusted).
+ */
+export function sortChaptersByNumber(chapters: SimpleChapter[]): SimpleChapter[] {
+  return [...chapters].sort((a, b) => {
+    const diff = chapterNumber(a) - chapterNumber(b);
+    if (diff !== 0) return diff;
+    if (a.publishedAt !== b.publishedAt) {
+      return a.publishedAt < b.publishedAt ? -1 : 1;
+    }
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  });
+}
+
+/**
+ * Pick the readable chapter with the smallest chapter number. Multiple rows of
+ * the same chapter number (e.g. different scanlation groups) are deduped,
+ * preferring a readable row so a licensed duplicate never hides a readable one.
+ */
+export function pickFirstReadableChapter(
+  chapters: SimpleChapter[],
+): SimpleChapter | undefined {
+  const byNumber = new Map<string, SimpleChapter>();
+  for (const c of sortChaptersByNumber(chapters)) {
+    const num = chapterNumber(c);
+    // Null/unparseable numbers can't be deduped meaningfully; keep each distinct.
+    const key = Number.isFinite(num) ? String(num) : `__null__${c.id}`;
+    const existing = byNumber.get(key);
+    if (!existing) {
+      byNumber.set(key, c);
+    } else if (!isReadable(existing) && isReadable(c)) {
+      byNumber.set(key, c);
+    }
+  }
+  // Map preserves insertion order, which is ascending by number.
+  for (const c of byNumber.values()) {
+    if (isReadable(c)) return c;
+  }
+  return undefined;
+}
+
 export interface ChapterPages {
   baseUrl: string;
   hash: string;
@@ -112,6 +161,21 @@ export function coverUrl(
   if (!fileName) return null;
   const suffix = size ? `.${size}.jpg` : "";
   return `${MD_UPLOADS}/covers/${mangaId}/${fileName}${suffix}`;
+}
+
+/**
+ * Same-origin proxy URL for a chapter page image (1-based page number). The
+ * proxy (app/chapter-page/[chapterId]/[page]) fetches the MangaDex@Home image
+ * server-side, so this is what the reader renders instead of the direct
+ * at-home URL (which fails CORS/referrer checks in the browser).
+ */
+export function chapterPageProxyUrl(
+  chapterId: string,
+  page: number,
+  dataSaver = false,
+): string {
+  const url = `/chapter-page/${chapterId}/${page}`;
+  return dataSaver ? `${url}?quality=data-saver` : url;
 }
 
 /** Build a single page image URL from an at-home server response. */

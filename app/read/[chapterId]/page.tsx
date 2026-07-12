@@ -5,7 +5,7 @@ import {
   getChapters,
   getManga,
 } from "@/lib/mangadex-server";
-import { coverUrl, pageImageUrl } from "@/lib/mangadex";
+import { chapterPageProxyUrl, coverUrl, sortChaptersByNumber } from "@/lib/mangadex";
 import { Reader } from "@/components/reader/reader";
 import { ExternalChapterNotice } from "@/components/reader/external-notice";
 import { auth } from "@/lib/auth";
@@ -38,10 +38,16 @@ export default async function ReadPage({
     needPages ? getChapterPages(chapterId) : Promise.resolve(null),
   ]);
 
-  const idx = feed.chapters.findIndex((c) => c.id === chapterId);
-  const prevId = idx > 0 ? feed.chapters[idx - 1].id : null;
+  // Numeric ordering (shared with the manga page) so prev/next follow chapter
+  // numbers, not the raw feed order. Not deduped: the current chapter's own row
+  // must stay in the list for findIndex to locate it.
+  const orderedChapters = sortChaptersByNumber(feed.chapters);
+  const idx = orderedChapters.findIndex((c) => c.id === chapterId);
+  const prevId = idx > 0 ? orderedChapters[idx - 1].id : null;
   const nextId =
-    idx >= 0 && idx < feed.chapters.length - 1 ? feed.chapters[idx + 1].id : null;
+    idx >= 0 && idx < orderedChapters.length - 1
+      ? orderedChapters[idx + 1].id
+      : null;
 
   const chapterLabel = info.chapter ? `Chapter ${info.chapter}` : "Oneshot";
   const cover = manga ? coverUrl(manga.id, manga.coverFileName, 256) : null;
@@ -85,7 +91,11 @@ export default async function ReadPage({
   }
 
   const useDataSaver = false;
-  const imageUrls = pages.data.map((_, i) => pageImageUrl(pages, i, useDataSaver));
+  // Render through the same-origin proxy; the direct at-home URL errors in the
+  // browser. The proxy fetches upstream server-side and streams the bytes.
+  const imageUrls = pages.data.map((_, i) =>
+    chapterPageProxyUrl(chapterId, i + 1, useDataSaver),
+  );
 
   return (
     <Reader

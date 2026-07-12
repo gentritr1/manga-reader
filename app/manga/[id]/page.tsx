@@ -3,7 +3,12 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { BookOpen } from "lucide-react";
 import { getChapters, getManga } from "@/lib/mangadex-server";
-import { coverUrl, isReadable } from "@/lib/mangadex";
+import {
+  coverUrl,
+  isReadable,
+  pickFirstReadableChapter,
+  sortChaptersByNumber,
+} from "@/lib/mangadex";
 import { SITE_NAME, SITE_URL } from "@/lib/site";
 import { MangaCoverImage } from "@/components/manga/cover-image";
 import { CoverTransitionElement } from "@/components/manga/cover-transition";
@@ -64,7 +69,9 @@ export default async function MangaDetailPage({
 
   const [manga, feed, shelves, readingAnalytics] = await Promise.all([
     getManga(id),
-    getChapters(id, { limit: 200, order: "desc" }),
+    // Fetch ascending so the earliest chapters are always in the window; a
+    // desc + limit window drops chapter 1 for long series, breaking the picker.
+    getChapters(id, { limit: 500, order: "asc" }),
     session?.user?.id
       ? prisma.shelf.findMany({
           where: { userId: session.user.id },
@@ -80,9 +87,12 @@ export default async function MangaDetailPage({
   if (!manga) notFound();
 
   const cover = coverUrl(manga.id, manga.coverFileName, 512);
-  // feed is newest-first; the earliest readable chapter is the last readable one.
-  const firstChapter = [...feed.chapters].reverse().find(isReadable);
+  // Pick the readable chapter with the numerically smallest number (deduping
+  // multiple scanlation-group rows per number, preferring a readable one).
+  const firstChapter = pickFirstReadableChapter(feed.chapters);
   const readableCount = feed.chapters.filter(isReadable).length;
+  // Chapter list stays newest-first; sort numerically then reverse.
+  const displayChapters = [...sortChaptersByNumber(feed.chapters)].reverse();
   // All chapters are licensed/official links, so nothing can be read in-app.
   const licensedOnly = feed.chapters.length > 0 && readableCount === 0;
 
@@ -242,7 +252,7 @@ export default async function MangaDetailPage({
             </div>
           )}
           <ChapterList
-            chapters={feed.chapters}
+            chapters={displayChapters}
             secondsPerPage={readingAnalytics?.averageSecondsPerPage}
           />
         </div>
