@@ -62,13 +62,26 @@ export async function getManga(id: string): Promise<SimpleManga | null> {
 
 export async function getChapters(
   mangaId: string,
-  opts: { limit?: number; offset?: number; order?: "asc" | "desc" } = {},
+  opts: {
+    limit?: number;
+    offset?: number;
+    order?: "asc" | "desc";
+    /**
+     * Expand the scanlation_group relationship. Defaults to true (the chapter
+     * list UI shows group names). Callers that only need chapter numbers/ids —
+     * e.g. the reader computing prev/next neighbors — pass false to drop the
+     * expanded group payload from every row.
+     */
+    includeScanlationGroup?: boolean;
+  } = {},
 ): Promise<{ chapters: SimpleChapter[]; total: number }> {
   const q = new URLSearchParams();
   q.set("limit", String(opts.limit ?? 100));
   q.set("offset", String(opts.offset ?? 0));
   q.append("translatedLanguage[]", "en");
-  q.append("includes[]", "scanlation_group");
+  if (opts.includeScanlationGroup !== false) {
+    q.append("includes[]", "scanlation_group");
+  }
   for (const cr of ["safe", "suggestive", "erotica"])
     q.append("contentRating[]", cr);
   q.set("order[volume]", opts.order ?? "asc");

@@ -14,6 +14,7 @@ const ALLOWED_QUERY_KEYS = new Set([
   "title",
   "limit",
   "offset",
+  "ids[]",
   "status[]",
   "includedTags[]",
   "order[latestUploadedChapter]",
@@ -21,6 +22,9 @@ const ALLOWED_QUERY_KEYS = new Set([
   "order[rating]",
   "order[title]",
 ]);
+// The /chapter endpoint is proxied only for batched id lookups (resolving a
+// manga's latestUploadedChapter id to its number/date). Nothing else is passed.
+const ALLOWED_CHAPTER_QUERY_KEYS = new Set(["ids[]", "limit"]);
 
 type JsonObject = Record<string, unknown>;
 
@@ -45,6 +49,25 @@ function allowedMangaSearchParams(req: NextRequest): URLSearchParams {
     if (ALLOWED_QUERY_KEYS.has(key)) searchParams.append(key, value);
   }
   return searchParams;
+}
+
+function chapterProxyTarget(path: string[], req: NextRequest): string | null {
+  if (path.length !== 1 || path[0] !== "chapter") return null;
+
+  const searchParams = new URLSearchParams();
+  for (const [key, value] of req.nextUrl.searchParams) {
+    if (ALLOWED_CHAPTER_QUERY_KEYS.has(key)) searchParams.append(key, value);
+  }
+  const ids = searchParams.getAll("ids[]");
+  // Require an explicit id set; this is an id-batch resolver, not a feed.
+  if (ids.length === 0) return null;
+
+  const rawLimit = Number(searchParams.get("limit") ?? String(ids.length));
+  const parsedLimit = Number.isFinite(rawLimit) ? Math.trunc(rawLimit) : ids.length;
+  searchParams.set("limit", String(Math.min(Math.max(parsedLimit, 1), MAX_PROXY_LIMIT)));
+  searchParams.sort();
+
+  return `${MD_API}/chapter?${searchParams.toString()}`;
 }
 
 function mangaProxyTarget(path: string[], req: NextRequest): string | null {
@@ -126,8 +149,40 @@ function trimMangaEntity(value: unknown): unknown {
       year: attrs.year,
       tags,
       lastChapter: attrs.lastChapter,
+      // Chapter uuid of the manga's most recent upload (any language). The
+      // personal "New for you" island resolves this id to a number/date via a
+      // second batched /chapter request.
+      latestUploadedChapter: attrs.latestUploadedChapter,
     }),
     relationships,
+  });
+}
+
+function trimChapterEntity(value: unknown): unknown {
+  if (!isObject(value)) return value;
+  const attrs = isObject(value.attributes) ? value.attributes : {};
+  return compactObject({
+    id: value.id,
+    type: value.type,
+    attributes: compactObject({
+      chapter: attrs.chapter,
+      translatedLanguage: attrs.translatedLanguage,
+      pages: attrs.pages,
+      readableAt: attrs.readableAt,
+      publishAt: attrs.publishAt,
+    }),
+  });
+}
+
+function trimChapterListResponse(value: unknown): unknown {
+  if (!isObject(value) || !Array.isArray(value.data)) return value;
+  return compactObject({
+    result: value.result,
+    response: value.response,
+    data: value.data.map(trimChapterEntity),
+    limit: value.limit,
+    offset: value.offset,
+    total: value.total,
   });
 }
 
@@ -151,7 +206,10 @@ export async function GET(
   { params }: { params: Promise<{ path: string[] }> },
 ) {
   const { path } = await params;
-  const target = mangaProxyTarget(path, req);
+  const mangaTarget = mangaProxyTarget(path, req);
+  const chapterTarget = mangaTarget ? null : chapterProxyTarget(path, req);
+  const target = mangaTarget ?? chapterTarget;
+  const trim = mangaTarget ? trimMangaListResponse : trimChapterListResponse;
   if (!target) {
     return NextResponse.json(
       { error: "Unsupported MangaDex proxy endpoint" },
@@ -194,7 +252,7 @@ export async function GET(
     }
 
     if (res.ok) {
-      const body = trimMangaListResponse(await res.json());
+      const body = trim(await res.json());
       return NextResponse.json(body, {
         status: res.status,
         headers,

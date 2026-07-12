@@ -33,7 +33,13 @@ export default async function ReadPage({
   const [manga, feed, pages] = await Promise.all([
     mangaId ? getManga(mangaId) : Promise.resolve(null),
     mangaId
-      ? getChapters(mangaId, { order: "asc", limit: 500 })
+      ? // Neighbors only need chapter ids + numbers for ordering, so skip the
+        // scanlation_group expansion to trim the per-row payload of this feed.
+        getChapters(mangaId, {
+          order: "asc",
+          limit: 500,
+          includeScanlationGroup: false,
+        })
       : Promise.resolve({ chapters: [], total: 0 }),
     needPages ? getChapterPages(chapterId) : Promise.resolve(null),
   ]);

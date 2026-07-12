@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { YomiMark } from "@/components/brand/yomi-mark";
 import { SITE_HOST, SITE_NAME } from "@/lib/site";
-import { toPng } from "html-to-image";
 import { cn } from "@/lib/utils";
 
 type ShelfItem = {
@@ -266,6 +265,9 @@ export function ShelvesClient({ initialShelves }: { initialShelves: Shelf[] }) {
       await waitForFonts();
       await waitForRenderedImages(el);
 
+      // html-to-image is only needed on this explicit share/export action, so
+      // load it on demand to keep it out of the route's initial JS bundle.
+      const { toPng } = await import("html-to-image");
       const dataUrl = await toPng(el, {
         backgroundColor: getComputedStyle(el).backgroundColor,
         pixelRatio: 2,

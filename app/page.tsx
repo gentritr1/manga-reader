@@ -1,6 +1,7 @@
 import { getLatestUpdates, getPopular } from "@/lib/mangadex-server";
 import { Hero } from "@/components/home/hero";
 import { ContinueReading } from "@/components/home/continue-reading";
+import { NewForYou } from "@/components/home/new-for-you";
 import { Section } from "@/components/manga/section";
 import { MangaGrid } from "@/components/manga/manga-grid";
 import { MangaCarousel } from "@/components/manga/manga-carousel";
@@ -156,6 +157,8 @@ export default async function HomePage() {
           starterManga={starterManga}
           reservedMangaIds={reservedContinueReadingIds}
         />
+
+        <NewForYou />
 
         {popularRail.length > 0 && (
           <Section

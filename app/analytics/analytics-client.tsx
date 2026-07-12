@@ -1,7 +1,6 @@
 "use client";
 
 import { useRef } from "react";
-import { toPng } from "html-to-image";
 import { Download, TrendingUp, BookOpen, Clock, Activity } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useReadingRhythm } from "@/lib/use-reading-rhythm";
@@ -22,6 +21,9 @@ export function AnalyticsClient({ totalPages, formattedTime, averageSpeed, topMa
   const handleExport = async () => {
     if (!cardRef.current) return;
     try {
+      // html-to-image is only needed on this explicit export action, so load it
+      // on demand to keep it out of the route's initial JS bundle.
+      const { toPng } = await import("html-to-image");
       const dataUrl = await toPng(cardRef.current, {
         backgroundColor: "#15131d",
         pixelRatio: 2,

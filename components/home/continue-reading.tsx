@@ -15,6 +15,7 @@ import {
 import { Section } from "@/components/manga/section";
 import { buttonClassName } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { formatReadTimeEstimate } from "@/lib/read-time";
 
 const PROGRESS_STORAGE_PREFIX = "yomi-progress:";
 
@@ -87,6 +88,18 @@ function progressPercent(item: HistoryItem) {
   return Math.min(100, Math.max(0, (item.page / item.totalPages) * 100));
 }
 
+// "~N min left": the house chapter read-time estimate scaled to the pages still
+// ahead of the reader (current page inclusive), per lib/read-time.ts.
+function remainingReadTime(item: HistoryItem): string | null {
+  if (!item.page || !item.totalPages) return null;
+  const remainingPages = item.totalPages - item.page + 1;
+  if (remainingPages < 1) return null;
+  const estimate = formatReadTimeEstimate(remainingPages);
+  return estimate ? `${estimate} left` : null;
+}
+
+const RESUME_RAIL_LIMIT = 3;
+
 export function ContinueReading({
   starterManga = [],
   reservedMangaIds = [],
@@ -127,7 +140,7 @@ export function ContinueReading({
           {Array.from({ length: 3 }).map((_, index) => (
             <div
               key={index}
-              className="h-28 w-64 shrink-0 rounded-card border border-line-subtle bg-surface-panel skeleton"
+              className="h-52 w-72 shrink-0 rounded-card border border-line-subtle bg-surface-panel skeleton"
             />
           ))}
         </div>
@@ -155,80 +168,100 @@ export function ContinueReading({
     >
       <div className="relative">
         <div className="flex gap-4 overflow-x-auto pb-2 no-scrollbar">
-          {history.map((item) => {
+          {history.slice(0, RESUME_RAIL_LIMIT).map((item) => {
             const percent = progressPercent(item);
+            const minutesLeft = remainingReadTime(item);
+            const chapterLabel = item.chapter
+              ? `Chapter ${item.chapter}`
+              : "Oneshot";
             return (
-              <CoverTransitionLink
-                mangaId={item.mangaId}
+              <div
                 key={item.mangaId}
-                href={`/read/${item.chapterId}`}
-                prefetch={false}
-                className="group relative flex min-h-28 w-64 shrink-0 gap-3 overflow-hidden rounded-card border border-line-subtle bg-surface-panel p-3 transition hover:-translate-y-0.5 hover:border-brand-primary/45 hover:[box-shadow:var(--elevation-hover)] focus-visible:border-brand-primary"
-                data-yomi-cover-transition-root
+                className="group relative flex w-72 shrink-0 flex-col overflow-hidden rounded-card border border-line-subtle bg-surface-panel p-4 transition hover:-translate-y-0.5 hover:border-brand-primary/45 hover:[box-shadow:var(--elevation-hover)] focus-within:border-brand-primary"
               >
-                <CoverTransitionElement
+                <CoverTransitionLink
                   mangaId={item.mangaId}
-                  enabled={!reservedManga.has(item.mangaId)}
-                  className="relative aspect-[2/3] w-14 shrink-0 overflow-hidden rounded-md bg-surface-muted"
+                  href={`/manga/${item.mangaId}`}
+                  prefetch={false}
+                  aria-label={`Open ${item.title}`}
+                  className="flex gap-4 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus"
+                  data-yomi-cover-transition-root
                 >
-                  {item.coverUrl && (
-                    <MangaCoverImage
-                      src={item.coverUrl}
-                      alt={`${item.title} cover`}
-                      fill
-                      sizes="56px"
-                      className="object-cover"
-                    />
-                  )}
-                </CoverTransitionElement>
-                <div className="min-w-0 flex-1">
-                  <p className="line-clamp-2 text-sm font-medium">
-                    {item.title}
-                  </p>
-                  {item.chapter && (
-                    <p className="mt-1 text-xs text-content-secondary">
-                      Chapter {item.chapter}
+                  <CoverTransitionElement
+                    mangaId={item.mangaId}
+                    enabled={!reservedManga.has(item.mangaId)}
+                    className="relative aspect-[2/3] w-20 shrink-0 overflow-hidden rounded-md bg-surface-muted"
+                  >
+                    {item.coverUrl && (
+                      <MangaCoverImage
+                        src={item.coverUrl}
+                        alt={`${item.title} cover`}
+                        fill
+                        sizes="80px"
+                        className="object-cover"
+                      />
+                    )}
+                  </CoverTransitionElement>
+                  <div className="min-w-0 flex-1">
+                    <p className="line-clamp-2 text-sm font-semibold leading-snug">
+                      {item.title}
                     </p>
-                  )}
-                  {item.page && (
                     <p className="mt-1 text-xs text-content-secondary">
-                      Page {item.page}
-                      {item.totalPages ? ` of ${item.totalPages}` : ""}
+                      {chapterLabel}
                     </p>
-                  )}
-                  {percent !== null && item.totalPages && item.page && (
-                    <div
-                      role="progressbar"
-                      aria-label={`${item.title} reading progress`}
-                      aria-valuemin={1}
-                      aria-valuemax={item.totalPages}
-                      aria-valuenow={Math.min(item.page, item.totalPages)}
-                      className="mt-2 h-1 overflow-hidden rounded-full bg-library-surface"
-                    >
-                      {reduceMotion ? (
-                        <div
-                          className="h-full rounded-full bg-library"
-                          style={{ width: `${percent}%` }}
-                        />
-                      ) : (
-                        <motion.div
-                          className="h-full origin-left rounded-full bg-library"
-                          initial={{ scaleX: 0 }}
-                          animate={{ scaleX: 1 }}
-                          transition={{
-                            duration: 0.4,
-                            ease: [0.22, 1, 0.36, 1],
-                          }}
-                          style={{ width: `${percent}%` }}
-                        />
-                      )}
-                    </div>
-                  )}
-                  <span className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-brand-primary">
-                    <Play className="h-3 w-3 fill-current" /> Resume chapter
-                  </span>
-                </div>
-              </CoverTransitionLink>
+                    {minutesLeft && (
+                      <p className="mt-1 text-xs font-semibold text-brand-primary">
+                        {minutesLeft}
+                      </p>
+                    )}
+                    {item.page && (
+                      <p className="mt-1 text-xs text-content-secondary">
+                        Page {item.page}
+                        {item.totalPages ? ` of ${item.totalPages}` : ""}
+                      </p>
+                    )}
+                  </div>
+                </CoverTransitionLink>
+                {percent !== null && item.totalPages && item.page && (
+                  <div
+                    role="progressbar"
+                    aria-label={`${item.title} reading progress`}
+                    aria-valuemin={1}
+                    aria-valuemax={item.totalPages}
+                    aria-valuenow={Math.min(item.page, item.totalPages)}
+                    className="mt-3 h-1.5 overflow-hidden rounded-full bg-library-surface"
+                  >
+                    {reduceMotion ? (
+                      <div
+                        className="h-full rounded-full bg-library"
+                        style={{ width: `${percent}%` }}
+                      />
+                    ) : (
+                      <motion.div
+                        className="h-full origin-left rounded-full bg-library"
+                        initial={{ scaleX: 0 }}
+                        animate={{ scaleX: 1 }}
+                        transition={{
+                          duration: 0.4,
+                          ease: [0.22, 1, 0.36, 1],
+                        }}
+                        style={{ width: `${percent}%` }}
+                      />
+                    )}
+                  </div>
+                )}
+                <Link
+                  href={`/read/${item.chapterId}`}
+                  prefetch={false}
+                  aria-label={`Resume ${item.title}, ${chapterLabel}`}
+                  className={buttonClassName({
+                    className: "mt-3 w-full focus-visible:ring-2 focus-visible:ring-focus",
+                  })}
+                >
+                  <Play className="h-4 w-4 fill-current" aria-hidden="true" />
+                  Resume
+                </Link>
+              </div>
             );
           })}
         </div>
