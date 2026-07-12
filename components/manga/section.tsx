@@ -22,7 +22,7 @@ export function Section({
             {title}
           </h2>
           {description && (
-            <p className="text-sm leading-6 text-content-secondary sm:text-base">
+            <p className="text-base leading-7 text-content-secondary">
               {description}
             </p>
           )}

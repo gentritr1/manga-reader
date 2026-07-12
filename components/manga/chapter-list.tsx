@@ -374,7 +374,7 @@ export function ChapterList({
                 aria-pressed={selected}
                 onClick={() => setDirection(value)}
                 className={cn(
-                  "inline-flex min-h-9 items-center rounded-full px-3.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus",
+                  "inline-flex min-h-11 items-center rounded-full px-3.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus",
                   selected
                     ? "bg-surface-muted text-content-primary shadow-sm"
                     : "text-content-secondary hover:text-content-primary",

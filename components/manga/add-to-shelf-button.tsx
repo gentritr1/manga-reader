@@ -142,7 +142,7 @@ export function AddToShelfButton({
                     key={shelf.id}
                     onClick={() => toggleShelf(shelf.id, isAdded)}
                     disabled={isPending}
-                    className="flex items-center justify-between w-full p-2.5 rounded-lg hover:bg-surface-muted transition-colors text-left disabled:opacity-50"
+                    className="flex min-h-11 items-center justify-between w-full p-2.5 rounded-lg hover:bg-surface-muted transition-colors text-left disabled:opacity-50"
                   >
                     <div className="flex items-center gap-3">
                       <div className={cn("w-3 h-3 rounded-full shadow-sm", colorMap[shelf.colorVibe] || "bg-indigo-500")} />

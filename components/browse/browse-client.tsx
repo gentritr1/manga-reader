@@ -262,7 +262,7 @@ export function BrowseClient() {
         <h1 className="font-display text-2xl font-extrabold tracking-tight sm:text-3xl">
           Browse manga
         </h1>
-        <p className="text-sm leading-6 text-muted-foreground">
+        <p className="text-base leading-7 text-muted-foreground">
           New releases, popular series, and genre shelves in one clean scan.
         </p>
       </div>
@@ -402,7 +402,7 @@ export function BrowseClient() {
                             onClick={() => toggleGenre(tag.id)}
                             aria-pressed={selected}
                             className={cn(
-                              "inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus active:scale-95",
+                              "inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3.5 text-sm font-medium transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus active:scale-95",
                               selected
                                 ? "border-transparent bg-brand-primary text-brand-primary-foreground shadow-sm shadow-brand-primary/25"
                                 : "border-line-subtle text-content-secondary hover:border-line-strong hover:bg-surface-muted/60 hover:text-content-primary",
@@ -435,7 +435,7 @@ export function BrowseClient() {
                   type="button"
                   onClick={() => setGenres([])}
                   aria-label={`Clear ${genres.length} selected genre filters`}
-                  className="min-h-9 rounded-lg text-sm font-medium text-brand-primary transition hover:underline"
+                  className="inline-flex min-h-11 items-center rounded-lg text-sm font-medium text-brand-primary transition hover:underline"
                 >
                   Clear {genres.length} selected
                 </button>

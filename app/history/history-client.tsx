@@ -75,7 +75,7 @@ export function HistoryClient() {
           <h1 className="font-display text-2xl font-extrabold tracking-tight sm:text-3xl">
             Reading history
           </h1>
-          <p className="text-sm leading-6 text-content-secondary">
+          <p className="text-base leading-7 text-content-secondary">
             The chapters you&rsquo;ve opened on this device. It stays with you
             here — nothing to keep up with.
           </p>
@@ -113,7 +113,7 @@ export function HistoryClient() {
       {entries.length === 0 ? (
         <div className="rounded-card border border-line-subtle bg-surface-panel px-6 py-14 text-center">
           <p className="text-base font-semibold">No chapters here yet.</p>
-          <p className="mx-auto mt-1.5 max-w-sm text-sm leading-6 text-content-secondary">
+          <p className="mx-auto mt-1.5 max-w-sm text-base leading-7 text-content-secondary">
             Open any chapter and it will show up here, ready to pick back up.
           </p>
           <Link

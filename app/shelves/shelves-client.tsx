@@ -543,7 +543,7 @@ function ShelfCard({
           disabled={exporting}
           aria-label={`Share shelf ${shelf.name}`}
           title="Share shelf"
-          className="h-9 w-9 backdrop-blur"
+          className="backdrop-blur"
         >
           {exporting ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -557,7 +557,7 @@ function ShelfCard({
           onClick={onDelete}
           aria-label={deleting ? "Confirm delete" : `Delete ${shelf.name}`}
           className={cn(
-            "h-9 w-9 backdrop-blur transition-all duration-200",
+            "backdrop-blur transition-all duration-200",
             deleting
               ? "scale-105 bg-danger text-danger-foreground hover:brightness-110"
               : "text-danger hover:bg-danger/10",

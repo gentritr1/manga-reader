@@ -99,7 +99,7 @@ export function AuthForm({
           <h1 className="text-2xl font-extrabold tracking-tight">
             {isSignup ? "Create your account" : "Welcome back"}
           </h1>
-          <p className="mx-auto mt-1.5 max-w-xs text-sm leading-relaxed text-content-secondary">
+          <p className="mx-auto mt-1.5 max-w-xs text-base leading-relaxed text-content-secondary">
             {authIntro(callbackUrl, isSignup)}
           </p>
         </div>

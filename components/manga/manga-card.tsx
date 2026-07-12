@@ -98,12 +98,17 @@ export function MangaCard({
         </CoverTransitionLink>
 
         {/* Favorite lives on the cover, top-right: resting quietly, lifting into
-            focus on hover/keyboard so the affordance is part of the tile. */}
+            focus on hover/keyboard so the affordance is part of the tile.
+            Hit-area pattern: the visual pill stays a compact 36px (h-9 w-9) so it
+            doesn't dominate the cover, but `after:-inset-1` extends an invisible
+            pseudo-element 4px on every side → a 44px (WCAG 2.5.8) tap target
+            without inflating the visual. Reused wherever a control must read
+            small but stay thumb-friendly. */}
         <FavoriteButton
           mangaId={manga.id}
           title={manga.title}
           coverUrl={cover}
-          className="absolute right-2 top-2 h-9 w-9 opacity-0 transition duration-200 focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 max-[640px]:opacity-100"
+          className="absolute right-2 top-2 h-9 w-9 opacity-0 transition duration-200 after:absolute after:-inset-1 after:content-[''] focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 max-[640px]:opacity-100"
         />
       </div>
 

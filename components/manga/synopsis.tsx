@@ -6,13 +6,13 @@ import { cn } from "@/lib/utils";
 export function Synopsis({ text }: { text: string }) {
   const [expanded, setExpanded] = useState(false);
   if (!text) {
-    return <p className="text-sm text-muted-foreground">No description available.</p>;
+    return <p className="text-base text-muted-foreground">No description available.</p>;
   }
   return (
     <div>
       <p
         className={cn(
-          "max-w-2xl whitespace-pre-line text-sm leading-relaxed text-muted-foreground",
+          "max-w-2xl whitespace-pre-line text-base leading-relaxed text-muted-foreground",
           !expanded && "line-clamp-4",
         )}
       >
