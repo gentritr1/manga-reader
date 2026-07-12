@@ -50,7 +50,7 @@ export function MangaCard({
                 loading={eager ? "eager" : "lazy"}
                 fetchPriority={eager ? "high" : "auto"}
                 sizes="(max-width: 640px) 45vw, (max-width: 1024px) 22vw, 200px"
-                className="object-cover transition duration-500 [transition-timing-function:var(--ease-standard)] group-hover:scale-[1.04]"
+                className="object-cover transition duration-200 ease-out group-hover:scale-[1.04]"
               />
             ) : (
               <div className="grid h-full place-items-center text-xs text-content-secondary">

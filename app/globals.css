@@ -379,13 +379,18 @@ body {
   }
 }
 
-a:focus-visible,
-button:focus-visible,
-input:focus-visible,
-select:focus-visible,
-textarea:focus-visible {
-  outline: none;
-  box-shadow: 0 0 0 2px var(--ring);
+/* Kept in @layer base so Tailwind's utilities layer (focus-visible:ring-*)
+   always wins. Unlayered, this box-shadow would beat any ring utility
+   regardless of specificity, forcing the violet --ring color everywhere. */
+@layer base {
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--ring);
+  }
 }
 
 /* Sleek thin scrollbars */

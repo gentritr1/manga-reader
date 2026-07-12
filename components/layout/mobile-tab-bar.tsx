@@ -33,6 +33,7 @@ export function MobileTabBar() {
               <Link
                 key={href}
                 href={href}
+                aria-label={label}
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "group relative flex min-h-14 flex-col items-center justify-center gap-1 text-[11px] font-medium transition-colors",

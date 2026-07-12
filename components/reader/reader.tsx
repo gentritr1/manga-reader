@@ -17,6 +17,8 @@ import {
   ChevronRight,
   Columns2,
   Heart,
+  Maximize2,
+  Minimize2,
   Rows3,
   X,
 } from "lucide-react";
@@ -36,6 +38,32 @@ import {
 import { cn } from "@/lib/utils";
 
 type Mode = "vertical" | "paged";
+
+// True when focus sits in a text field, contenteditable, or an open dialog
+// (e.g. the search palette) — reader keyboard shortcuts must yield to those.
+function isKeyboardCaptureTarget(): boolean {
+  const el = document.activeElement as HTMLElement | null;
+  if (!el) return false;
+  const tag = el.tagName;
+  if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return true;
+  if (el.isContentEditable) return true;
+  if (el.closest('[role="dialog"]')) return true;
+  return false;
+}
+
+// True when the key event originated on (or inside) an interactive element.
+// Reader shortcuts must never intercept or race keys headed for a focused
+// control — native Enter/Space activation always wins.
+function isInteractiveEventTarget(e: KeyboardEvent): boolean {
+  const origin = e.composedPath?.()[0] ?? e.target;
+  if (!(origin instanceof Element)) return false;
+  return Boolean(
+    origin.closest(
+      'button, a[href], input, select, textarea, summary, [role="button"], [role="link"], [contenteditable]:not([contenteditable="false"])',
+    ),
+  );
+}
+
 const MAX_IMAGE_RETRIES = 2;
 const PROGRESS_STORAGE_PREFIX = "yomi-progress:";
 const SERVER_PROGRESS_FLUSH_MS = 60_000;
@@ -692,12 +720,71 @@ function ReaderContent(props: Props) {
   useEffect(() => {
     if (mode !== "paged") return;
     const onKey = (e: KeyboardEvent) => {
+      if (e.defaultPrevented || isKeyboardCaptureTarget()) return;
       if (e.key === "ArrowRight") next();
       else if (e.key === "ArrowLeft") prev();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [mode, next, prev]);
+
+  // Vertical-mode scrolling ('j/k', arrows, PageUp/Down, Home/End) plus the
+  // shared 'z' zen toggle available in both modes. Space is intentionally left
+  // to the browser's native scroll, and keys originating on a focusable
+  // control (buttons, links) are left entirely to that control.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (
+        e.defaultPrevented ||
+        isInteractiveEventTarget(e) ||
+        isKeyboardCaptureTarget()
+      ) {
+        return;
+      }
+
+      if ((e.key === "z" || e.key === "Z") && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        toggleZenMode();
+        return;
+      }
+
+      if (mode !== "vertical") return;
+
+      const reduceMotion = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+      const behavior: ScrollBehavior = reduceMotion ? "auto" : "smooth";
+      const step = Math.round(window.innerHeight * 0.9);
+
+      switch (e.key) {
+        case "ArrowDown":
+        case "PageDown":
+        case "j":
+          e.preventDefault();
+          window.scrollBy({ top: step, behavior });
+          break;
+        case "ArrowUp":
+        case "PageUp":
+        case "k":
+          e.preventDefault();
+          window.scrollBy({ top: -step, behavior });
+          break;
+        case "Home":
+          e.preventDefault();
+          window.scrollTo({ top: 0, behavior });
+          break;
+        case "End":
+          e.preventDefault();
+          window.scrollTo({
+            top: document.documentElement.scrollHeight,
+            behavior,
+          });
+          break;
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [mode, toggleZenMode]);
 
   // Preload neighbour image in paged mode.
   useEffect(() => {
@@ -747,7 +834,7 @@ function ReaderContent(props: Props) {
           href={backHref}
           prefetch={false}
           aria-label={`Back to ${props.mangaTitle}`}
-          className="flex min-h-11 items-center gap-2 rounded-lg text-sm hover:text-reader-muted focus-visible:ring-reader-focus"
+          className="flex min-h-11 items-center gap-2 rounded-lg text-sm hover:text-reader-muted focus-visible:ring-2 focus-visible:ring-reader-focus"
         >
           <ArrowLeft className="h-5 w-5" aria-hidden="true" />
           <span className="hidden sm:inline">Back</span>
@@ -772,7 +859,7 @@ function ReaderContent(props: Props) {
             aria-label="Vertical mode"
             aria-pressed={mode === "vertical"}
             className={cn(
-              "grid h-11 w-11 place-items-center rounded-lg transition hover:bg-reader-control-hover focus-visible:ring-reader-focus",
+              "grid h-11 w-11 place-items-center rounded-lg transition hover:bg-reader-control-hover focus-visible:ring-2 focus-visible:ring-reader-focus",
               mode === "vertical" && "bg-reader-control-selected",
             )}
           >
@@ -784,11 +871,24 @@ function ReaderContent(props: Props) {
             aria-label="Paged mode"
             aria-pressed={mode === "paged"}
             className={cn(
-              "grid h-11 w-11 place-items-center rounded-lg transition hover:bg-reader-control-hover focus-visible:ring-reader-focus",
+              "grid h-11 w-11 place-items-center rounded-lg transition hover:bg-reader-control-hover focus-visible:ring-2 focus-visible:ring-reader-focus",
               mode === "paged" && "bg-reader-control-selected",
             )}
           >
             <Columns2 className="h-5 w-5" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={toggleZenMode}
+            aria-label={zenMode ? "Exit immersive mode" : "Enter immersive mode"}
+            aria-pressed={zenMode}
+            className="grid h-11 w-11 place-items-center rounded-lg transition hover:bg-reader-control-hover focus-visible:ring-2 focus-visible:ring-reader-focus"
+          >
+            {zenMode ? (
+              <Minimize2 className="h-5 w-5" aria-hidden="true" />
+            ) : (
+              <Maximize2 className="h-5 w-5" aria-hidden="true" />
+            )}
           </button>
         </div>
       </header>
@@ -841,7 +941,7 @@ function ReaderContent(props: Props) {
             <button
               type="button"
               onClick={() => resumeAtPage(resumePromptPage)}
-              className="h-9 rounded-full bg-action-primary px-3 text-sm font-semibold text-action-primary-foreground transition hover:brightness-110 focus-visible:ring-reader-focus"
+              className="h-9 rounded-full bg-action-primary px-3 text-sm font-semibold text-action-primary-foreground transition hover:brightness-110 focus-visible:ring-2 focus-visible:ring-reader-focus"
             >
               Resume
             </button>
@@ -849,7 +949,7 @@ function ReaderContent(props: Props) {
               type="button"
               aria-label="Dismiss resume prompt"
               onClick={() => setResumePromptPage(null)}
-              className="grid h-9 w-9 place-items-center rounded-full text-reader-muted transition hover:bg-reader-control-hover hover:text-reader-foreground focus-visible:ring-reader-focus"
+              className="grid h-9 w-9 place-items-center rounded-full text-reader-muted transition hover:bg-reader-control-hover hover:text-reader-foreground focus-visible:ring-2 focus-visible:ring-reader-focus"
             >
               <X className="h-4 w-4" aria-hidden="true" />
             </button>
@@ -1027,7 +1127,7 @@ function ChapterEndMomentumCard({
         <button
           type="button"
           onClick={() => router.push(`/read/${prevId}`)}
-          className="mt-4 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-reader-muted transition hover:text-reader-foreground focus-visible:ring-reader-focus"
+          className="mt-4 inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-reader-muted transition hover:text-reader-foreground focus-visible:ring-2 focus-visible:ring-reader-focus"
         >
           <ChevronLeft className="h-4 w-4" aria-hidden="true" /> Previous chapter
         </button>
@@ -1178,7 +1278,7 @@ function ReaderPageImage({
                 event.stopPropagation();
                 retryNow();
               }}
-              className="rounded-lg border border-reader-line px-3 py-2 transition hover:bg-reader-control-hover focus-visible:ring-reader-focus"
+              className="rounded-lg border border-reader-line px-3 py-2 transition hover:bg-reader-control-hover focus-visible:ring-2 focus-visible:ring-reader-focus"
             >
               Retry page
             </button>
@@ -1372,7 +1472,7 @@ function PagedReader({
           disabled={prevDisabled}
           onClick={onPrev}
           aria-label={isIntro ? "Previous chapter" : "Previous page"}
-          className="grid h-11 min-w-11 place-items-center rounded-lg px-3 hover:bg-reader-control-hover focus-visible:ring-reader-focus disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+          className="grid h-11 min-w-11 place-items-center rounded-lg px-3 hover:bg-reader-control-hover focus-visible:ring-2 focus-visible:ring-reader-focus disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
         >
           <ChevronLeft className="h-5 w-5" aria-hidden="true" />
         </button>
@@ -1384,7 +1484,7 @@ function PagedReader({
           disabled={nextDisabled}
           onClick={onNext}
           aria-label={isEnd ? "Next chapter" : "Next page"}
-          className="grid h-11 min-w-11 place-items-center rounded-lg px-3 hover:bg-reader-control-hover focus-visible:ring-reader-focus disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
+          className="grid h-11 min-w-11 place-items-center rounded-lg px-3 hover:bg-reader-control-hover focus-visible:ring-2 focus-visible:ring-reader-focus disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent"
         >
           <ChevronRight className="h-5 w-5" aria-hidden="true" />
         </button>

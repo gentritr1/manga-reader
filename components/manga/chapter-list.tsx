@@ -51,6 +51,11 @@ export function ChapterList({
     <ul className="grid grid-cols-1 gap-x-6 sm:rounded-xl sm:border sm:border-line-subtle lg:grid-cols-2">
       {chapters.map((c, index) => {
         const readable = isReadable(c);
+        // Explicit accessible name so the link never depends on name-from-contents
+        // of the nested truncated text (which resolved empty in the a11y tree).
+        const accessibleName = c.title
+          ? `${chapterLabel(c)} · ${c.title}`
+          : chapterLabel(c);
         const title = (
           <div className="min-w-0">
             <p className="truncate text-sm font-medium">
@@ -69,6 +74,7 @@ export function ChapterList({
               href={c.externalUrl}
               target="_blank"
               rel="noopener noreferrer"
+              aria-label={`${accessibleName} (official external)`}
               className="flex items-center justify-between gap-3 px-4 py-3 transition hover:bg-muted focus-visible:bg-muted"
             >
               {title}
@@ -85,6 +91,7 @@ export function ChapterList({
             <Link
               href={`/read/${c.id}`}
               prefetch={false}
+              aria-label={accessibleName}
               className="group flex items-center justify-between gap-3 px-4 py-3 transition hover:bg-muted focus-visible:bg-muted"
             >
               {title}

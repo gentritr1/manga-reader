@@ -92,14 +92,14 @@ export function Hero({
           <div className="grid w-full min-w-0 grid-cols-2 gap-2 sm:hidden">
             <Link
               href="/browse?sort=popular"
-              className="inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-control border border-line-inverse bg-surface-inverse-tint px-3 text-sm font-semibold text-content-inverse transition hover:bg-surface-inverse-tint/80 focus-visible:ring-reader-focus"
+              className="inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-control border border-line-inverse bg-surface-inverse-tint px-3 text-sm font-semibold text-content-inverse transition hover:bg-surface-inverse-tint/80 focus-visible:ring-2 focus-visible:ring-reader-focus"
             >
               <Compass className="h-4 w-4" aria-hidden="true" />
               Popular
             </Link>
             <Link
               href="/browse?sort=latest"
-              className="inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-control border border-line-inverse bg-surface-inverse-tint px-3 text-sm font-semibold text-content-inverse transition hover:bg-surface-inverse-tint/80 focus-visible:ring-reader-focus"
+              className="inline-flex min-h-11 min-w-0 items-center justify-center gap-2 rounded-control border border-line-inverse bg-surface-inverse-tint px-3 text-sm font-semibold text-content-inverse transition hover:bg-surface-inverse-tint/80 focus-visible:ring-2 focus-visible:ring-reader-focus"
             >
               <Sparkles className="h-4 w-4" aria-hidden="true" />
               Latest
