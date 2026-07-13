@@ -34,6 +34,7 @@ export default async function AnalyticsPage() {
           totalPages={analytics.totalPages}
           formattedTime={analytics.formattedTime}
           averageSpeed={averageSpeed}
+          seriesCount={analytics.seriesCount}
           topManga={analytics.topManga}
           name={session.user.name || "Reader"}
         />

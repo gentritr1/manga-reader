@@ -35,6 +35,12 @@ export const SHARE_CARD_BACKGROUND_IMAGE = `radial-gradient(circle at 50% 20%, $
 // The three-color shelf-edge line (brand signature), stated explicitly.
 export const SHARE_CARD_SHELF_EDGE = `linear-gradient(90deg, ${SHARE_CARD_COLORS.violet}, ${SHARE_CARD_COLORS.cyan}, ${SHARE_CARD_COLORS.coral})`;
 
+// The Chapter Pulse recap card background: a deep violet-black wash with a
+// single, barely-there violet vignette at the top and nothing else. No cyan/teal
+// blob and no multi-hue edge — the recap stays in the app's violet monoculture
+// (PR-19). Explicit oklch literals only (html-to-image can't resolve var()).
+export const SHARE_CARD_RECAP_BACKGROUND = `radial-gradient(circle at 50% 0%, ${SHARE_CARD_COLORS.violetTint16}, transparent 48%), linear-gradient(180deg, ${SHARE_CARD_COLORS.spotlight} 0%, ${SHARE_CARD_COLORS.canvas} 70%)`;
+
 // Per-slot spine gradients for shelves with no loaded cover (explicit, no var()).
 export const SHARE_SPINE_BACKGROUNDS = [
   `linear-gradient(180deg, ${SHARE_CARD_COLORS.violet}, ${SHARE_CARD_COLORS.violetDeep})`,

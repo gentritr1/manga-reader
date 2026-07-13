@@ -14,6 +14,8 @@ export interface UserReadingAnalytics {
   totalSeconds: number;
   formattedTime: string;
   averageSecondsPerPage: number | null;
+  /** Distinct series the reader has any recorded sessions for. */
+  seriesCount: number;
   topManga: { title: string; pages: number; coverUrl: string | null }[];
 }
 
@@ -92,6 +94,7 @@ async function getUserReadingAnalyticsUncached(
     totalSeconds,
     formattedTime: formatTotalTime(totalSeconds, totalPages),
     averageSecondsPerPage: calculateAverageSecondsPerPage(sessions),
+    seriesCount: Object.keys(mangaMap).length,
     topManga: ranked.map((m) => ({
       title: m.title,
       pages: m.pages,
@@ -102,6 +105,6 @@ async function getUserReadingAnalyticsUncached(
 
 export const getUserReadingAnalytics = unstable_cache(
   getUserReadingAnalyticsUncached,
-  ["user-reading-analytics-v2"],
+  ["user-reading-analytics-v3"],
   { revalidate: 300 },
 );

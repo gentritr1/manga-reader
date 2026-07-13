@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import Image from "next/image";
-import { Download, TrendingUp, BookOpen, Clock } from "lucide-react";
+import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { YomiMark } from "@/components/brand/yomi-mark";
 import { SITE_HOST, SITE_NAME } from "@/lib/site";
@@ -17,9 +17,8 @@ import { useLocalWeekStats } from "@/lib/use-local-week-stats";
 import { formatWeekLine } from "@/lib/local-reading-stats";
 import { plural } from "@/lib/plural";
 import {
-  SHARE_CARD_BACKGROUND_IMAGE,
   SHARE_CARD_COLORS,
-  SHARE_CARD_SHELF_EDGE,
+  SHARE_CARD_RECAP_BACKGROUND,
   SHARE_SPINE_BACKGROUNDS,
 } from "@/lib/share-card-theme";
 import {
@@ -33,6 +32,7 @@ interface Props {
   totalPages: number;
   formattedTime: string;
   averageSpeed: string;
+  seriesCount: number;
   topManga: { title: string; pages: number; coverUrl: string | null }[];
   name: string;
 }
@@ -42,7 +42,7 @@ const C = SHARE_CARD_COLORS;
 // The recap/export card renders at one fixed composition width so the exported
 // PNG is deterministic (same share size on every device) and matches what is
 // shown on screen. 672px === the card's previous max-w-2xl (42rem), so the
-// canonical desktop export is byte-identical to before this change.
+// canonical desktop export is byte-identical in size to before this change.
 const CARD_WIDTH = 672;
 
 // useLayoutEffect runs before paint (so the scale is applied with no flash /
@@ -54,6 +54,7 @@ export function AnalyticsClient({
   totalPages,
   formattedTime,
   averageSpeed,
+  seriesCount,
   topManga,
   name,
 }: Props) {
@@ -96,220 +97,241 @@ export function AnalyticsClient({
   };
 
   return (
-    <div className="space-y-8">
+    // One max-width column holds both the scaled card and the export row, so the
+    // row's right edge lines up with the card's right edge at every width (the
+    // card always fills this column's width — full on desktop, scaled-to-fill on
+    // mobile — so their right edges coincide).
+    <div className="mx-auto w-full space-y-4" style={{ maxWidth: CARD_WIDTH }}>
       <ScaleToFit cardWidth={CARD_WIDTH}>
-      <div
-        ref={cardRef}
-        className="relative overflow-hidden rounded-card p-8"
-        style={{
-          width: CARD_WIDTH,
-          backgroundColor: C.canvas,
-          backgroundImage: SHARE_CARD_BACKGROUND_IMAGE,
-          color: C.inverse,
-        }}
-      >
         <div
-          aria-hidden="true"
-          className="absolute inset-x-0 top-0 h-1.5"
-          style={{ backgroundImage: SHARE_CARD_SHELF_EDGE }}
-        />
-
-        <div className="mb-8 flex items-center justify-between gap-4">
-          <div>
-            <h2
-              className="font-display text-3xl font-extrabold tracking-tight"
-              style={{ color: C.inverse }}
-            >
-              Chapter Pulse
-            </h2>
-            <p
-              className="mt-1 text-xs font-semibold uppercase tracking-wider"
-              style={{ color: C.inverseMuted }}
-            >
-              {`${name}'s reading recap`}
-            </p>
-          </div>
-          <div className="flex items-center gap-2.5">
-            <YomiMark className="h-9 w-9" />
-            <span
-              className="font-display text-lg font-extrabold"
-              style={{ color: C.inverse }}
-            >
-              {SITE_NAME}
-            </span>
-          </div>
-        </div>
-
-        {weekLine && (
-          <div
-            className="mb-8 flex items-center gap-3.5 rounded-card px-5 py-4"
-            style={{
-              backgroundColor: C.violetTint22,
-              border: `1px solid ${C.violetTint40}`,
-              borderLeft: `4px solid ${C.violet}`,
-            }}
-          >
-            {/* A purposeful filled mark with a soft, gently pulsing halo. The
-                solid dot is always full-opacity so the exported PNG reads clean;
-                the halo animation is gated on prefers-reduced-motion. */}
-            <span
-              aria-hidden="true"
-              className="relative flex h-3 w-3 shrink-0 items-center justify-center"
-            >
+          ref={cardRef}
+          className="relative overflow-hidden rounded-card p-8"
+          style={{
+            width: CARD_WIDTH,
+            backgroundColor: C.canvas,
+            backgroundImage: SHARE_CARD_RECAP_BACKGROUND,
+            border: `1px solid ${C.lineInverse}`,
+            color: C.inverse,
+          }}
+        >
+          <header className="flex items-start justify-between gap-4">
+            <div>
+              <h2
+                className="font-display text-3xl font-extrabold tracking-tight"
+                style={{ color: C.inverse }}
+              >
+                Chapter Pulse
+              </h2>
+              <p
+                className="mt-1.5 text-[11px] font-semibold uppercase tracking-[0.18em]"
+                style={{ color: C.inverseMuted }}
+              >
+                {`${name}'s reading recap`}
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2.5">
+              <YomiMark className="h-9 w-9" />
               <span
-                className="absolute inline-flex h-full w-full rounded-full motion-safe:animate-ping"
-                style={{ backgroundColor: C.violet, opacity: 0.5 }}
-              />
-              <span
-                className="relative inline-flex h-2.5 w-2.5 rounded-full"
-                style={{ backgroundColor: C.violet }}
-              />
-            </span>
-            <span
-              className="font-display text-base font-extrabold"
-              style={{ color: C.inverse }}
-            >
-              My week
-            </span>
-            <span
-              className="text-sm font-medium"
-              style={{ color: C.inverseMuted }}
-            >
-              {weekLine}
-            </span>
-          </div>
-        )}
-
-        <div className="mb-10 grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <div
-              className="flex items-center gap-2"
-              style={{ color: C.inverseMuted }}
-            >
-              <BookOpen className="h-4 w-4" aria-hidden="true" />
-              <span className="text-xs font-bold uppercase tracking-wider">
-                Pages read
+                className="font-display text-lg font-extrabold"
+                style={{ color: C.inverse }}
+              >
+                {SITE_NAME}
               </span>
             </div>
-            <p
-              className="font-display text-4xl font-extrabold"
-              style={{ color: C.inverse }}
+          </header>
+
+          {/* Editorial deck line: one set line between two hairlines. Text only —
+              no box, no dot, no stripe. Numerals are emphasized with weight and
+              the display face, never a second colour. */}
+          {weekLine && (
+            <div
+              className="mt-7 py-3.5 text-center"
+              style={{
+                borderTop: `1px solid ${C.lineInverse}`,
+                borderBottom: `1px solid ${C.lineInverse}`,
+              }}
             >
-              {totalPages.toLocaleString()}
-            </p>
+              <DeckLine text={weekLine} />
+            </div>
+          )}
+
+          {/* Stat row — the home rhythm card's hairline-divided column set:
+              display numeral + small-caps label per column, vertical hairlines
+              between columns. No hero-metric blocks in dead space. */}
+          <div className="mt-8 flex items-stretch">
+            <StatColumn
+              value={totalPages.toLocaleString()}
+              label={`${plural(totalPages, "Page")} read`}
+            />
+            <StatColumn
+              value={formattedTime}
+              label="Time spent"
+              withDivider
+            />
+            <StatColumn
+              value={seriesCount.toLocaleString()}
+              label="Series"
+              withDivider
+            />
           </div>
 
-          <div className="space-y-2">
-            <div
-              className="flex items-center gap-2"
+          {/* Top series — a tight ranked list: display rank numeral, small cover,
+              title, right-aligned plain page count. Hairlines between rows. */}
+          <div className="mt-9">
+            <p
+              className="text-[11px] font-semibold uppercase tracking-[0.18em]"
               style={{ color: C.inverseMuted }}
             >
-              <Clock className="h-4 w-4" aria-hidden="true" />
-              <span className="text-xs font-bold uppercase tracking-wider">
-                Time spent
-              </span>
-            </div>
-            <p
-              className="font-display text-4xl font-extrabold"
-              style={{ color: C.inverse }}
-            >
-              {formattedTime}
-            </p>
-          </div>
-        </div>
-
-        <div className="space-y-6">
-          <div
-            className="flex items-center gap-2 pb-4"
-            style={{
-              color: C.inverseMuted,
-              borderBottom: `1px solid ${C.lineInverse}`,
-            }}
-          >
-            <TrendingUp className="h-4 w-4" aria-hidden="true" />
-            <span className="text-xs font-bold uppercase tracking-wider">
               Top series
-            </span>
-          </div>
-
-          {topManga.length === 0 ? (
-            <p className="text-sm font-medium" style={{ color: C.inverseMuted }}>
-              Start reading to build your recap.
             </p>
-          ) : (
-            <div className="space-y-6">
-              {/* Cover row — mirrors the shelves card's book treatment. */}
-              <div className="flex items-end gap-3">
-                {topManga.map((manga, i) => (
-                  <CoverThumb
-                    key={i}
-                    index={i}
-                    coverUrl={manga.coverUrl}
-                    dataUrl={coverSources[String(i)]}
-                    title={manga.title}
-                  />
-                ))}
-              </div>
 
-              <div className="space-y-4">
-              {topManga.map((manga, i) => (
-                <div key={i} className="flex items-center justify-between gap-4">
-                  <div className="flex min-w-0 items-center gap-4">
+            {topManga.length === 0 ? (
+              <p
+                className="mt-4 text-sm font-medium"
+                style={{ color: C.inverseMuted }}
+              >
+                Start reading to build your recap.
+              </p>
+            ) : (
+              <div className="mt-2">
+                {topManga.map((manga, i) => (
+                  <div
+                    key={i}
+                    className="flex items-center gap-4 py-3"
+                    style={
+                      i > 0
+                        ? { borderTop: `1px solid ${C.lineInverse}` }
+                        : undefined
+                    }
+                  >
                     <span
-                      className="font-display w-6 shrink-0 text-xl font-extrabold"
+                      className="font-display w-5 shrink-0 text-lg font-extrabold tabular-nums"
                       style={{ color: C.inverseMuted }}
                     >
                       {i + 1}
                     </span>
+                    <SeriesCover
+                      index={i}
+                      coverUrl={manga.coverUrl}
+                      dataUrl={coverSources[String(i)]}
+                      title={manga.title}
+                    />
                     <span
-                      className="max-w-[300px] truncate text-base font-bold"
+                      className="min-w-0 flex-1 truncate text-base font-bold"
                       style={{ color: C.inverse }}
                     >
                       {manga.title}
                     </span>
+                    <span
+                      className="shrink-0 text-sm font-medium tabular-nums"
+                      style={{ color: C.inverseMuted }}
+                    >
+                      {manga.pages.toLocaleString()} {plural(manga.pages, "page")}
+                    </span>
                   </div>
-                  <span
-                    className="shrink-0 rounded-full px-3 py-1.5 text-xs font-bold uppercase tracking-wider"
-                    style={{
-                      color: C.inverseMuted,
-                      border: `1px solid ${C.lineInverse}`,
-                    }}
-                  >
-                    {manga.pages} {plural(manga.pages, "page")}
-                  </span>
-                </div>
-              ))}
+                ))}
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
 
-        <div
-          className="mt-10 flex items-center justify-between gap-4 pt-5"
-          style={{
-            color: C.inverseMuted,
-            borderTop: `1px solid ${C.lineInverse}`,
-          }}
-        >
-          <span className="text-xs font-bold tracking-wide">{SITE_HOST}</span>
-          <span className="text-xs font-bold tracking-wide">
-            {rhythm && rhythm.rhythmDays > 0
-              ? `${rhythm.rhythmDays}-night rhythm`
-              : `${averageSpeed}s / page average`}
-          </span>
+          <footer
+            className="mt-9 flex items-center justify-between gap-4 pt-5"
+            style={{
+              color: C.inverseMuted,
+              borderTop: `1px solid ${C.lineInverse}`,
+            }}
+          >
+            <span className="text-xs font-bold tracking-wide">{SITE_HOST}</span>
+            <span className="text-xs font-bold tracking-wide">
+              {rhythm && rhythm.rhythmDays > 0
+                ? `${rhythm.rhythmDays}-night rhythm`
+                : `${averageSpeed}s / page average`}
+            </span>
+          </footer>
         </div>
-      </div>
       </ScaleToFit>
 
-      <Button
-        onClick={handleExport}
-        size="lg"
-        disabled={rhythmQuery.isLoading}
-        className="h-12 px-8 font-bold"
+      {/* Export action anchored to the card: a right-aligned row directly below
+          it, in the same max-width column. Kept OUTSIDE the scaled card node so
+          the button stays at its true ≥44px size and is never captured in the
+          exported PNG. */}
+      <div className="flex flex-wrap items-center justify-end gap-x-4 gap-y-2">
+        <p className="text-sm text-content-secondary">Saves a PNG of this card</p>
+        <Button
+          onClick={handleExport}
+          size="lg"
+          disabled={rhythmQuery.isLoading}
+          className="h-12 px-8 font-bold"
+        >
+          <Download className="mr-2 h-5 w-5" aria-hidden="true" />
+          Export recap
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// The deck line rendered with numerals emphasized by weight (and the display
+// face), never a second colour — so it reads as one editorial line on the card's
+// light inverse ink. Digit runs (including thousands separators) are split out
+// and set heavier; everything else stays the base weight.
+function DeckLine({ text }: { text: string }) {
+  const parts = text.split(/(\d[\d,]*)/);
+  return (
+    <p
+      className="text-sm font-medium leading-relaxed"
+      style={{ color: C.inverse }}
+    >
+      {parts.map((part, i) =>
+        /^\d/.test(part) ? (
+          <span key={i} className="font-display font-extrabold">
+            {part}
+          </span>
+        ) : (
+          <span key={i}>{part}</span>
+        ),
+      )}
+    </p>
+  );
+}
+
+// One column of the stat row — mirrors the home rhythm card's StatColumn
+// (display numeral + small-caps micro-label), with an explicit-literal vertical
+// hairline separating columns (explicit literals inside the captured card).
+function StatColumn({
+  value,
+  label,
+  withDivider = false,
+}: {
+  value: string;
+  label: string;
+  withDivider?: boolean;
+}) {
+  return (
+    <div
+      className="flex min-w-0 flex-1 flex-col"
+      style={
+        withDivider
+          ? {
+              borderLeft: `1px solid ${C.lineInverse}`,
+              paddingLeft: "1.25rem",
+              marginLeft: "1.25rem",
+            }
+          : undefined
+      }
+    >
+      <span
+        className="font-display text-3xl font-extrabold leading-none tracking-tight tabular-nums"
+        style={{ color: C.inverse }}
       >
-        <Download className="mr-2 h-5 w-5" aria-hidden="true" />
-        Export recap
-      </Button>
+        {value}
+      </span>
+      <span
+        className="mt-2 text-[11px] font-semibold uppercase leading-tight tracking-[0.14em]"
+        style={{ color: C.inverseMuted }}
+      >
+        {label}
+      </span>
     </div>
   );
 }
@@ -376,13 +398,13 @@ function ScaleToFit({
   );
 }
 
-// A single cover in the recap's cover row. Displays the remote cover through
-// next/image (served same-origin via /_next/image, so it can be rasterized on
-// export). During export the parent swaps in `dataUrl` — a same-origin PNG data
-// URL — which html-to-image can draw. Missing covers fall back to a spine
-// gradient, mirroring the shelves share card. Colors are explicit oklch literals
-// (no var()), as the export card must not depend on the cloned DOM's variables.
-function CoverThumb({
+// A single cover in the Top series list. Small (rounded-sm, hairline border) so
+// it reads as an editorial thumbnail beside the title, not a hero shelf. Displays
+// the remote cover through next/image (served same-origin via /_next/image, so it
+// can be rasterized on export). During export the parent swaps in `dataUrl` — a
+// same-origin PNG data URL — which html-to-image can draw. Missing covers fall
+// back to a spine gradient. Colors are explicit oklch literals only.
+function SeriesCover({
   index,
   coverUrl,
   dataUrl,
@@ -395,10 +417,10 @@ function CoverThumb({
 }) {
   return (
     <div
-      className="relative aspect-[2/3] w-20 shrink-0 overflow-hidden rounded-lg"
+      className="relative aspect-[2/3] w-10 shrink-0 overflow-hidden rounded-sm"
       style={{
-        background: SHARE_SPINE_BACKGROUNDS[index % SHARE_SPINE_BACKGROUNDS.length],
-        boxShadow: `0 12px 28px ${C.canvas}`,
+        background:
+          SHARE_SPINE_BACKGROUNDS[index % SHARE_SPINE_BACKGROUNDS.length],
         outline: `1px solid ${C.lineInverse}`,
         outlineOffset: -1,
       }}
@@ -409,20 +431,25 @@ function CoverThumb({
           src={dataUrl}
           alt=""
           draggable={false}
-          style={{ display: "block", height: "100%", width: "100%", objectFit: "cover" }}
+          style={{
+            display: "block",
+            height: "100%",
+            width: "100%",
+            objectFit: "cover",
+          }}
         />
       ) : coverUrl ? (
         <Image
           src={coverUrl}
           alt=""
           fill
-          sizes="80px"
+          sizes="40px"
           data-share-cover-id={String(index)}
           className="object-cover"
         />
       ) : (
         <span
-          className="font-display absolute inset-x-2 top-3 text-[11px] font-extrabold leading-tight"
+          className="font-display absolute inset-x-1 top-1.5 text-[8px] font-extrabold leading-tight"
           style={{
             color: "oklch(0.96 0.018 284 / 0.84)",
             display: "-webkit-box",
