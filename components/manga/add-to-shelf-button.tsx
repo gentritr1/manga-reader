@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useTransition } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { ListPlus, Check } from "lucide-react";
+import { ListPlus, Check, BookmarkCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { addToShelf, removeFromShelf } from "@/app/shelves/actions";
 import { cn } from "@/lib/utils";
@@ -113,10 +113,7 @@ export function AddToShelfButton({
           className="inline-flex items-center gap-2"
         >
           {isInShelf ? (
-            <Check
-              className="h-5 w-5 fill-library text-library"
-              aria-hidden="true"
-            />
+            <BookmarkCheck className="h-5 w-5" aria-hidden="true" />
           ) : (
             <ListPlus className="h-5 w-5" aria-hidden="true" />
           )}
@@ -149,7 +146,11 @@ export function AddToShelfButton({
                       <span className="text-sm font-medium text-content-primary truncate max-w-[140px]">{shelf.name}</span>
                     </div>
                     {isAdded ? (
-                      <Check className="h-4 w-4 fill-library text-brand-primary" />
+                      <Check
+                        className="h-4 w-4 text-brand-primary"
+                        strokeWidth={2.5}
+                        aria-hidden="true"
+                      />
                     ) : null}
                   </button>
                 );
