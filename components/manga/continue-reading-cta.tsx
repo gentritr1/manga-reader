@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowRight, Play } from "lucide-react";
+import { ArrowRight, BookOpen, Play } from "lucide-react";
 import { isReadable, type SimpleChapter } from "@/lib/mangadex";
 import {
   isChapterFinished,
@@ -10,7 +10,6 @@ import {
   type ChapterProgress,
 } from "@/lib/reading-progress";
 import { buttonClassName } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 
 function chapterNumber(c: SimpleChapter): number {
   const n = c.chapter != null ? parseFloat(c.chapter) : NaN;
@@ -64,20 +63,22 @@ function resolveCta(
 }
 
 /**
- * Client island rendered next to "Start reading". Reads local reading progress
- * after mount; renders nothing (no reserved space, no flash) when this manga has
- * no history, otherwise fades in a Continue / Next-chapter button. Server-side
- * "Start reading" stays the primary action.
+ * The detail page's single primary reading CTA. Server-renders as
+ * "Start reading" (so the link ships in SSR HTML for no-JS/SEO), then morphs
+ * into "Continue · Ch. N — page P" / "Next chapter" after mount when this manga
+ * has local history — one context-aware action instead of two competing
+ * buttons. With no readable chapter and no history it renders nothing.
  */
 export function ContinueReadingCta({
   mangaId,
   chapters,
+  startHref,
 }: {
   mangaId: string;
   chapters: SimpleChapter[];
+  startHref: string | null;
 }) {
   const [resolved, setResolved] = useState<Resolved | null>(null);
-  const [visible, setVisible] = useState(false);
 
   useEffect(() => {
     const progress = readMostRecentMangaProgress(mangaId);
@@ -85,26 +86,27 @@ export function ContinueReadingCta({
     const cta = resolveCta(progress, chapters);
     if (!cta) return;
     // Client-only reconciliation from localStorage after mount (avoids a
-    // hydration mismatch and the no-history flash), so this setState is intended.
+    // hydration mismatch), so this setState is intended.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setResolved(cta);
-    const frame = requestAnimationFrame(() => setVisible(true));
-    return () => cancelAnimationFrame(frame);
   }, [mangaId, chapters]);
 
-  if (!resolved) return null;
+  if (!resolved && !startHref) return null;
 
   return (
     <Link
-      href={resolved.href}
+      href={resolved ? resolved.href : (startHref as string)}
       prefetch={false}
-      className={cn(
-        buttonClassName({ variant: "secondary", size: "lg" }),
-        "flex-1 min-[480px]:flex-none transition-opacity duration-300 motion-reduce:transition-none",
-        visible ? "opacity-100" : "opacity-0",
-      )}
+      className={buttonClassName({
+        size: "lg",
+        className: "flex-1 min-[480px]:flex-none",
+      })}
     >
-      {resolved.kind === "next" ? (
+      {!resolved ? (
+        <>
+          <BookOpen className="h-5 w-5" aria-hidden="true" /> Start reading
+        </>
+      ) : resolved.kind === "next" ? (
         <>
           {resolved.label}
           <ArrowRight className="h-5 w-5" aria-hidden="true" />

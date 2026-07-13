@@ -1,8 +1,6 @@
-import Link from "next/link";
 import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
-import { BookOpen } from "lucide-react";
 import { getChapters, getManga } from "@/lib/mangadex-server";
 import {
   READING_LANGUAGE_COOKIE,
@@ -17,7 +15,6 @@ import {
 import { SITE_NAME, SITE_URL } from "@/lib/site";
 import { MangaCoverImage } from "@/components/manga/cover-image";
 import { CoverTransitionElement } from "@/components/manga/cover-transition";
-import { buttonClassName } from "@/components/ui/button";
 import { FavoriteButton } from "@/components/manga/favorite-button";
 import { Synopsis } from "@/components/manga/synopsis";
 import { ChapterList } from "@/components/manga/chapter-list";
@@ -213,21 +210,10 @@ export default async function MangaDetailPage({
               </div>
 
               <div className="mx-auto flex w-full max-w-sm flex-wrap justify-center gap-2 min-[480px]:mx-0 min-[480px]:max-w-none min-[480px]:justify-start">
-                {firstChapter && (
-                  <Link
-                    href={`/read/${firstChapter.id}`}
-                    prefetch={false}
-                    className={buttonClassName({
-                      size: "lg",
-                      className: "flex-1 min-[480px]:flex-none",
-                    })}
-                  >
-                    <BookOpen className="h-5 w-5" /> Start reading
-                  </Link>
-                )}
                 <ContinueReadingCta
                   mangaId={manga.id}
                   chapters={sortedChapters}
+                  startHref={firstChapter ? `/read/${firstChapter.id}` : null}
                 />
                 {session?.user?.id && (
                   <AddToShelfButton
