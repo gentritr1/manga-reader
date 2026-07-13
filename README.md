@@ -93,16 +93,12 @@ Supabase, Vercel Postgres, or another Postgres provider, then:
 For local testing you don't need a hosted database — Prisma ships a local
 Postgres-compatible server (`prisma dev`, PGlite-based, no Docker):
 
-1. Start it. `prisma dev` needs `node:sqlite`, so your shell's *active* Node
-   matters (an old default Node will reject the flag with "not allowed in
-   NODE_OPTIONS"):
+1. Start it under **Node 24+** (`prisma dev` needs a complete `node:sqlite`;
+   22.5–23.3 expose it behind a flag but are missing `StatementSync.iterate`,
+   which silently breaks the write path — logins/signups fail):
 
    ```bash
-   # Node 22.5–23.3: switch versions first, then pass the flag
-   nvm use 23.3.0
-   NODE_OPTIONS=--experimental-sqlite npx prisma dev
-
-   # Node ≥ 23.4 (e.g. nvm install 24): no flag needed
+   nvm use 24   # nvm install 24 the first time
    npx prisma dev
    ```
 
