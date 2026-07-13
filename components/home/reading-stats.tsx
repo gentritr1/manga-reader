@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useLocalWeekStats } from "@/lib/use-local-week-stats";
+import { plural } from "@/lib/plural";
 
 // An editorial "Your reading rhythm" card near the Continue rail. Numbers come
 // from local reading progress (see lib/local-reading-stats.ts) so it works for
@@ -40,10 +41,6 @@ function useWeeklyGoal(): number | null {
   }, []);
 
   return goal;
-}
-
-function plural(count: number, word: string) {
-  return `${word}${count === 1 ? "" : "s"}`;
 }
 
 /** A single line-art flourish for the card's top-right. Decorative only. */

@@ -8,6 +8,7 @@
 
 import { calculateReadingRhythm } from "@/lib/reading-rhythm";
 import { DEFAULT_SECONDS_PER_PAGE } from "@/lib/read-time";
+import { plural } from "@/lib/plural";
 
 const PROGRESS_STORAGE_PREFIX = "yomi-progress:";
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
@@ -178,14 +179,16 @@ export function formatWeekLine(stats: LocalWeekStats | null): string | null {
   const parts: string[] = [];
   if (stats.rhythmNights > 0) {
     parts.push(
-      `${stats.rhythmNights} night${stats.rhythmNights === 1 ? "" : "s"} in a row`,
+      `${stats.rhythmNights} ${plural(stats.rhythmNights, "night")} in a row`,
     );
   } else if (stats.nightsThisWeek > 0) {
     parts.push(
-      `${stats.nightsThisWeek} night${stats.nightsThisWeek === 1 ? "" : "s"} this week`,
+      `${stats.nightsThisWeek} ${plural(stats.nightsThisWeek, "night")} this week`,
     );
   }
-  if (stats.pagesThisWeek > 0) parts.push(`${stats.pagesThisWeek} pages`);
+  if (stats.pagesThisWeek > 0)
+    parts.push(`${stats.pagesThisWeek} ${plural(stats.pagesThisWeek, "page")}`);
+  // "min" is a unit symbol — it does not pluralize ("1 min", "17 min").
   if (stats.minutesThisWeek > 0) parts.push(`${stats.minutesThisWeek} min`);
   return parts.length > 0 ? parts.join("  ·  ") : null;
 }

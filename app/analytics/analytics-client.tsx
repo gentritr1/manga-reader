@@ -1,6 +1,12 @@
 "use client";
 
-import { useRef, useState } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import Image from "next/image";
 import { Download, TrendingUp, BookOpen, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,6 +15,7 @@ import { SITE_HOST, SITE_NAME } from "@/lib/site";
 import { useReadingRhythm } from "@/lib/use-reading-rhythm";
 import { useLocalWeekStats } from "@/lib/use-local-week-stats";
 import { formatWeekLine } from "@/lib/local-reading-stats";
+import { plural } from "@/lib/plural";
 import {
   SHARE_CARD_BACKGROUND_IMAGE,
   SHARE_CARD_COLORS,
@@ -31,6 +38,17 @@ interface Props {
 }
 
 const C = SHARE_CARD_COLORS;
+
+// The recap/export card renders at one fixed composition width so the exported
+// PNG is deterministic (same share size on every device) and matches what is
+// shown on screen. 672px === the card's previous max-w-2xl (42rem), so the
+// canonical desktop export is byte-identical to before this change.
+const CARD_WIDTH = 672;
+
+// useLayoutEffect runs before paint (so the scale is applied with no flash /
+// CLS on the client) but warns during SSR; fall back to useEffect on the server.
+const useIsomorphicLayoutEffect =
+  typeof window !== "undefined" ? useLayoutEffect : useEffect;
 
 export function AnalyticsClient({
   totalPages,
@@ -79,10 +97,12 @@ export function AnalyticsClient({
 
   return (
     <div className="space-y-8">
+      <ScaleToFit cardWidth={CARD_WIDTH}>
       <div
         ref={cardRef}
-        className="relative max-w-2xl overflow-hidden rounded-card p-6 sm:p-8"
+        className="relative overflow-hidden rounded-card p-8"
         style={{
+          width: CARD_WIDTH,
           backgroundColor: C.canvas,
           backgroundImage: SHARE_CARD_BACKGROUND_IMAGE,
           color: C.inverse,
@@ -122,19 +142,31 @@ export function AnalyticsClient({
 
         {weekLine && (
           <div
-            className="mb-8 flex items-center gap-3 rounded-card px-4 py-3"
+            className="mb-8 flex items-center gap-3.5 rounded-card px-5 py-4"
             style={{
-              backgroundColor: C.violetTint16,
-              border: `1px solid ${C.lineInverse}`,
+              backgroundColor: C.violetTint22,
+              border: `1px solid ${C.violetTint40}`,
+              borderLeft: `4px solid ${C.violet}`,
             }}
           >
+            {/* A purposeful filled mark with a soft, gently pulsing halo. The
+                solid dot is always full-opacity so the exported PNG reads clean;
+                the halo animation is gated on prefers-reduced-motion. */}
             <span
               aria-hidden="true"
-              className="h-2.5 w-2.5 shrink-0 rounded-full"
-              style={{ backgroundColor: C.violet }}
-            />
+              className="relative flex h-3 w-3 shrink-0 items-center justify-center"
+            >
+              <span
+                className="absolute inline-flex h-full w-full rounded-full motion-safe:animate-ping"
+                style={{ backgroundColor: C.violet, opacity: 0.5 }}
+              />
+              <span
+                className="relative inline-flex h-2.5 w-2.5 rounded-full"
+                style={{ backgroundColor: C.violet }}
+              />
+            </span>
             <span
-              className="font-display text-sm font-extrabold"
+              className="font-display text-base font-extrabold"
               style={{ color: C.inverse }}
             >
               My week
@@ -230,7 +262,7 @@ export function AnalyticsClient({
                       {i + 1}
                     </span>
                     <span
-                      className="max-w-[180px] truncate text-base font-bold sm:max-w-[300px]"
+                      className="max-w-[300px] truncate text-base font-bold"
                       style={{ color: C.inverse }}
                     >
                       {manga.title}
@@ -243,7 +275,7 @@ export function AnalyticsClient({
                       border: `1px solid ${C.lineInverse}`,
                     }}
                   >
-                    {manga.pages} pages
+                    {manga.pages} {plural(manga.pages, "page")}
                   </span>
                 </div>
               ))}
@@ -267,6 +299,7 @@ export function AnalyticsClient({
           </span>
         </div>
       </div>
+      </ScaleToFit>
 
       <Button
         onClick={handleExport}
@@ -277,6 +310,68 @@ export function AnalyticsClient({
         <Download className="mr-2 h-5 w-5" aria-hidden="true" />
         Export recap
       </Button>
+    </div>
+  );
+}
+
+// Scale-to-fit wrapper for the recap card. The card itself renders at a single
+// fixed CARD_WIDTH (so it is one DOM node — what you see is exactly what the PNG
+// exports, with no responsive divergence). This wrapper measures the available
+// width and scales the card down with a top-left transform so it never overflows
+// on narrow screens, compensating the layout height so nothing below it shifts.
+// The card only ever scales DOWN (scale ≤ 1); on desktop the wrapper is capped
+// at CARD_WIDTH and centred, so the card sits centred with balanced margins
+// instead of stranded to one side. The transform lives on this wrapper, NOT on
+// the exported card node, so html-to-image still captures the card at 1:1.
+function ScaleToFit({
+  cardWidth,
+  children,
+}: {
+  cardWidth: number;
+  children: ReactNode;
+}) {
+  const outerRef = useRef<HTMLDivElement>(null);
+  const innerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+  const [height, setHeight] = useState<number | undefined>(undefined);
+
+  useIsomorphicLayoutEffect(() => {
+    const outer = outerRef.current;
+    const inner = innerRef.current;
+    if (!outer || !inner) return;
+
+    const measure = () => {
+      const available = outer.clientWidth;
+      const next = Math.min(1, available / cardWidth);
+      setScale(next);
+      setHeight(inner.offsetHeight * next);
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(outer);
+    observer.observe(inner);
+    return () => observer.disconnect();
+  }, [cardWidth]);
+
+  return (
+    // overflow-hidden clips the un-scaled layout box on narrow screens so there
+    // is never a horizontal scrollbar, even before the first measurement.
+    <div
+      ref={outerRef}
+      className="mx-auto w-full overflow-hidden"
+      style={{ maxWidth: cardWidth, height }}
+    >
+      <div
+        ref={innerRef}
+        style={{
+          width: cardWidth,
+          transformOrigin: "top left",
+          transform: scale === 1 ? undefined : `scale(${scale})`,
+        }}
+      >
+        {children}
+      </div>
     </div>
   );
 }
@@ -300,7 +395,7 @@ function CoverThumb({
 }) {
   return (
     <div
-      className="relative aspect-[2/3] w-16 shrink-0 overflow-hidden rounded-lg sm:w-20"
+      className="relative aspect-[2/3] w-20 shrink-0 overflow-hidden rounded-lg"
       style={{
         background: SHARE_SPINE_BACKGROUNDS[index % SHARE_SPINE_BACKGROUNDS.length],
         boxShadow: `0 12px 28px ${C.canvas}`,

@@ -20,6 +20,7 @@ export const SHARE_CARD_COLORS = {
   inverse: "oklch(0.96 0.018 284)", // --content-inverse
   inverseMuted: "oklch(0.96 0.018 284 / 0.75)", // --content-inverse-muted
   lineInverse: "oklch(0.96 0.018 284 / 0.2)", // --line-inverse
+  violetTint40: "oklch(0.72 0.18 276 / 0.4)", // assertive brand-violet hairline (My week strip border)
   violetTint22: "oklch(0.72 0.18 276 / 0.22)", // brand-violet 22% over transparent
   violetTint16: "oklch(0.72 0.18 276 / 0.16)", // --library-surface
   cyanTint14: "oklch(0.76 0.11 192 / 0.14)",

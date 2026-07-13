@@ -29,10 +29,15 @@ export function calculateAverageSecondsPerPage(
   return totalPages > 0 ? totalSeconds / totalPages : null;
 }
 
-function formatTotalTime(totalSeconds: number) {
+function formatTotalTime(totalSeconds: number, totalPages: number) {
   const hours = Math.floor(totalSeconds / 3600);
   const minutes = Math.floor((totalSeconds % 3600) / 60);
-  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  if (minutes > 0) return `${minutes}m`;
+  // Under a minute of recorded time. Showing "0m" next to pages read looks
+  // broken, so floor to a truthful "<1 min" whenever there are pages; only a
+  // genuinely empty recap (no pages) stays "0m".
+  return totalPages > 0 ? "<1 min" : "0m";
 }
 
 async function getUserReadingAnalyticsUncached(
@@ -85,7 +90,7 @@ async function getUserReadingAnalyticsUncached(
   return {
     totalPages,
     totalSeconds,
-    formattedTime: formatTotalTime(totalSeconds),
+    formattedTime: formatTotalTime(totalSeconds, totalPages),
     averageSecondsPerPage: calculateAverageSecondsPerPage(sessions),
     topManga: ranked.map((m) => ({
       title: m.title,
