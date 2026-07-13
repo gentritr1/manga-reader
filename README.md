@@ -106,7 +106,10 @@ Postgres-compatible server (`prisma dev`, PGlite-based, no Docker):
    connection string and keeps running (leave the terminal open; data persists
    across restarts).
 2. Put that string in **both** `.env` (Prisma CLI) and `.env.local` (Next.js)
-   as `DATABASE_URL` and `DIRECT_URL`.
+   as `DATABASE_URL` and `DIRECT_URL`, **and append `&pgbouncer=true`** to it.
+   The local server multiplexes sessions, so without it Prisma's named
+   prepared statements intermittently collide (`prepared statement "s0"
+   already exists`) — signups/logins fail randomly.
 3. Create the tables: `npx prisma migrate deploy` (the migrations folder has
    a full baseline; `db push` also works but skips migration bookkeeping).
 4. `npm run dev` as usual. Sign-up, favorites, shelves, and history sync now
